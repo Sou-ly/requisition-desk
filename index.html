@@ -1708,6 +1708,7 @@ function renderResume(){
       <td>${s.sent}</td><td>${s.replied}</td><td>${s.offers}</td><td>${rate}</td></tr>`;
   }).join('');
   wrap.innerHTML = `
+    <div class="resume-cols"><div>
     <h1>Resume</h1>
     <p class="lede">Versions live in the private repo next to the tracker. Each role's drawer has a resume selector beside the apply buttons: whatever it shows when you mark applied is what gets recorded, and it remembers your last pick as the default.</p>
     <div class="panel">
@@ -1726,9 +1727,11 @@ function renderResume(){
         <tr style="color:var(--faint)"><td>version</td><td>sent</td><td>replies</td><td>offers</td><td>reply rate</td></tr>
         ${statsRows}</table>`:''}
     </div>
-    ${v ? `<div class="resume-cols">${editorHTML(v)}
-      <div class="rv-side"><div id="rv-pagewrap"><div class="rsheet rs-page" id="rv-preview">${buildResumeHTML(v)}</div></div></div></div>`
-      : '<div class="panel"><h3>No versions yet</h3><p class="sub">Press New, then fill your resume in section by section. Duplicate it before each experiment so the stats stay separable.</p></div>'}`;
+    ${v ? editorHTML(v)
+      : '<div class="panel"><h3>No versions yet</h3><p class="sub">Press New, then fill your resume in section by section. Duplicate it before each experiment so the stats stay separable.</p></div>'}
+    </div>
+    ${v ? `<div class="rv-side"><div id="rv-pagewrap"><div class="rsheet rs-page" id="rv-preview">${buildResumeHTML(v)}</div></div></div>` : '<div></div>'}
+    </div>`;
 
   const sel = document.getElementById('rv-sel');
   if (sel) sel.onchange = ev => { RESUMES.activeId = ev.target.value; scheduleResumesPush(); renderResume(); };
