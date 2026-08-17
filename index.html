@@ -1,0 +1,1479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Requisition Desk</title>
+<style>
+:root{
+  --paper:#f2f1ec; --surface:#fffefa; --surface-2:#eceae3; --sunk:#e6e4dc;
+  --ink:#16191a; --ink-2:#3d4442; --muted:#6d726f; --faint:#9aa09c;
+  --rule:#dedbd2; --rule-2:#cbc7bb;
+  --accent:#0d5f5b; --accent-soft:#d6e7e4; --accent-ink:#0a4b47;
+  --amber:#9c6a12; --amber-soft:#f2e6cd;
+  --good:#276b45; --good-soft:#d7e9de;
+  --crit:#9a3131; --crit-soft:#f0dcda;
+  --shadow:0 1px 2px rgba(20,25,24,.06),0 8px 24px rgba(20,25,24,.07);
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#101312; --surface:#181b1a; --surface-2:#1f2321; --sunk:#0b0d0d;
+    --ink:#e9e7e1; --ink-2:#c3c7c3; --muted:#8b918d; --faint:#666c69;
+    --rule:#282d2b; --rule-2:#363c39;
+    --accent:#4fbdad; --accent-soft:#12332f; --accent-ink:#7ad3c5;
+    --amber:#d7a353; --amber-soft:#33280f;
+    --good:#5fb583; --good-soft:#132a1e;
+    --crit:#dd7b76; --crit-soft:#331a19;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#101312; --surface:#181b1a; --surface-2:#1f2321; --sunk:#0b0d0d;
+  --ink:#e9e7e1; --ink-2:#c3c7c3; --muted:#8b918d; --faint:#666c69;
+  --rule:#282d2b; --rule-2:#363c39;
+  --accent:#4fbdad; --accent-soft:#12332f; --accent-ink:#7ad3c5;
+  --amber:#d7a353; --amber-soft:#33280f;
+  --good:#5fb583; --good-soft:#132a1e;
+  --crit:#dd7b76; --crit-soft:#331a19;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- shell ---------- */
+.shell{display:flex;flex-direction:column;min-height:100vh}
+header.top{position:sticky;top:0;z-index:40;background:var(--surface);border-bottom:1px solid var(--rule)}
+.top-in{display:flex;align-items:center;gap:20px;padding:10px 18px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:1px;margin-right:4px}
+.brand b{font-size:15px;font-weight:700;letter-spacing:-.015em}
+.brand span{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em}
+nav.tabs{display:flex;gap:2px;background:var(--sunk);padding:3px;border-radius:8px}
+nav.tabs button{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:6px;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.pulse{display:flex;gap:14px}
+.pulse div{display:flex;flex-direction:column;line-height:1.15}
+.pulse b{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.pulse span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.btn{border:1px solid var(--rule-2);background:var(--surface);padding:6px 11px;border-radius:7px;font-size:12.5px;font-weight:500;transition:background .12s,border-color .12s}
+.btn:hover{background:var(--surface-2);border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] .btn.primary,html:not([data-theme="light"]) .btn.primary{color:var(--sunk)}
+.btn.primary:hover{filter:brightness(1.08);background:var(--accent)}
+.btn.sm{padding:4px 8px;font-size:11.5px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ---------- explore ---------- */
+main{flex:1;display:none}
+main.on{display:block}
+.explore{display:grid;grid-template-columns:230px minmax(0,1fr);align-items:start}
+aside.rail{position:sticky;top:53px;max-height:calc(100vh - 53px);overflow-y:auto;padding:16px 14px 40px;border-right:1px solid var(--rule);background:var(--surface)}
+.fgroup{margin-bottom:18px}
+.fgroup > .eyebrow{display:block;margin-bottom:7px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-family:var(--mono);font-size:11px;padding:3px 8px;border:1px solid var(--rule-2);border-radius:20px;color:var(--muted);display:flex;gap:5px;align-items:center}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+.chip i{font-style:normal;font-size:9.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"] i{color:var(--accent-ink);opacity:.75}
+.toggle{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px;color:var(--ink-2)}
+.toggle input{accent-color:var(--accent);width:14px;height:14px}
+select.sel,input.txt{width:100%;background:var(--surface);border:1px solid var(--rule-2);border-radius:7px;padding:6px 9px;font-size:12.5px}
+.searchwrap{flex:1;min-width:220px;position:relative;display:flex}
+.searchwrap input{width:100%;background:var(--sunk);border:1px solid transparent;border-radius:8px;padding:7px 11px 7px 30px;font-size:13px}
+.searchwrap input:focus{background:var(--surface);border-color:var(--accent);outline:none}
+.searchwrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--faint)}
+.tablebar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:53px;z-index:20;flex-wrap:wrap}
+.count{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.count b{color:var(--ink);font-variant-numeric:tabular-nums}
+.presets{display:flex;gap:4px;align-items:center}
+.presets button{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border:1px solid var(--rule-2);border-radius:6px;color:var(--muted);background:var(--surface)}
+.presets button:hover{border-color:var(--accent);color:var(--ink)}
+.presets button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+.morebar{display:flex;justify-content:center;padding:14px;border-bottom:1px solid var(--rule)}
+.tbl-scroll{}
+table{width:100%;border-collapse:collapse;table-layout:fixed;color:var(--ink);font:inherit}
+col.c-tier{width:52px} col.c-firm{width:15%} col.c-role{width:29%} col.c-track{width:11%}
+col.c-loc{width:14%} col.c-sig{width:9%} col.c-band{width:13%} col.c-stage{width:9%}
+thead th{position:sticky;top:96px;z-index:15;background:var(--surface-2);border-bottom:1px solid var(--rule-2);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 10px;white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--ink)}
+thead th.sorted{color:var(--accent-ink)}
+tbody tr{border-bottom:1px solid var(--rule);cursor:pointer}
+tbody tr:hover{background:var(--surface)}
+tbody tr.sel{background:var(--accent-soft)}
+td{padding:8px 10px;vertical-align:top;font-size:13px}
+td.t-firm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.t-title{color:var(--ink-2)}
+td.t-loc{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.t-wrap{color:var(--muted);font-size:12.5px}
+td.t-comp{font-family:var(--mono);font-size:11px;color:var(--good);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tier{font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;letter-spacing:.04em}
+.tier.T1{background:var(--accent);color:var(--surface)}
+.tier.T2{background:var(--accent-soft);color:var(--accent-ink);box-shadow:inset 0 0 0 1px var(--accent)}
+.tier.T3{background:var(--surface-2);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--rule-2)}
+.tier.T4{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--rule-2)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:2.5px 7px;border-radius:20px;white-space:nowrap}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.st-none{color:var(--faint);background:var(--surface-2)}
+.st-saved{color:var(--ink-2);background:var(--surface-2)}
+.st-applied{color:var(--accent-ink);background:var(--accent-soft)}
+.st-screen{color:var(--amber);background:var(--amber-soft)}
+.st-interview{color:var(--amber);background:var(--amber-soft)}
+.st-offer{color:var(--good);background:var(--good-soft)}
+.st-closed{color:var(--crit);background:var(--crit-soft)}
+.flag{font-family:var(--mono);font-size:9.5px;color:var(--crit);letter-spacing:.05em}
+.empty{padding:60px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;font-size:15px;color:var(--ink);margin-bottom:5px}
+
+/* ---------- drawer ---------- */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--rule-2);box-shadow:var(--shadow);z-index:60;display:flex;flex-direction:column;transform:translateX(102%);transition:transform .22s cubic-bezier(.4,0,.2,1);visibility:hidden}
+.drawer.on{transform:none;visibility:visible}
+@media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+.dr-head{padding:16px 18px 12px;border-bottom:1px solid var(--rule);display:flex;gap:12px;align-items:flex-start}
+.dr-head h2{font-size:17px;line-height:1.25;letter-spacing:-.01em;text-wrap:balance}
+.dr-head .sub{margin-top:3px;font-size:12.5px;color:var(--muted)}
+.dr-close{font-size:18px;line-height:1;color:var(--muted);padding:2px 6px;border-radius:6px}
+.dr-close:hover{background:var(--surface-2);color:var(--ink)}
+.dr-body{flex:1;overflow-y:auto;padding:0 18px 30px}
+.dr-actions{display:flex;gap:7px;padding:12px 18px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);flex-wrap:wrap;background:var(--surface-2)}
+.stagerow{display:flex;gap:3px;padding:12px 18px 0;flex-wrap:wrap}
+.stagerow button{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--rule-2);border-radius:6px;color:var(--muted)}
+.stagerow button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.sec{margin-top:20px}
+.sec > .eyebrow{display:block;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--rule)}
+.sec p{font-size:13px;color:var(--ink-2);white-space:pre-wrap}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:5px 12px;font-size:12.5px;margin-top:4px}
+.kv dt{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding-top:2px}
+.kv dd{color:var(--ink-2)}
+ul.reqs{list-style:none;display:flex;flex-direction:column;gap:5px;margin-top:4px}
+ul.reqs li{font-size:12.5px;color:var(--ink-2);padding-left:14px;position:relative}
+ul.reqs li::before{content:"";position:absolute;left:2px;top:8px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.6}
+textarea.note{width:100%;min-height:74px;background:var(--sunk);border:1px solid var(--rule-2);border-radius:8px;padding:9px;font-size:12.5px;resize:vertical}
+.warnbox{background:var(--crit-soft);border:1px solid var(--crit);border-radius:8px;padding:9px 11px;font-size:12px;color:var(--ink-2);margin-top:12px}
+
+/* ---------- board ---------- */
+.board-wrap{padding:16px 18px 40px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.tile{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:11px 13px}
+.tile b{display:block;font-family:var(--mono);font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1}
+.tile span{display:block;margin-top:2px}
+.tile.hot b{color:var(--amber)}
+.tile.win b{color:var(--good)}
+.board{display:grid;grid-template-columns:repeat(6,minmax(190px,1fr));gap:10px;align-items:start;overflow-x:auto;padding-bottom:8px}
+.col{background:var(--surface-2);border-radius:10px;padding:9px;min-height:120px;border:1px solid transparent;transition:border-color .12s,background .12s}
+.col.over{border-color:var(--accent);background:var(--accent-soft)}
+.col > header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px}
+.col > header b{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.col > header i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:9px 10px;margin-bottom:6px;cursor:grab;box-shadow:0 1px 1px rgba(0,0,0,.03)}
+.card:hover{border-color:var(--rule-2)}
+.card.drag{opacity:.4}
+.card b{display:block;font-size:12.5px;font-weight:600;line-height:1.3}
+.card span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:11.5px;color:var(--muted);margin-top:2px}
+.card .meta{display:flex;align-items:center;gap:6px;margin-top:7px;font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.05em}
+.card .agebad{color:var(--crit)}
+.hint{font-size:12px;color:var(--muted);margin-bottom:12px}
+
+/* ---------- forms / autofill ---------- */
+.pagewrap{max-width:940px;margin:0 auto;padding:22px 20px 60px}
+.pagewrap h1{font-size:22px;letter-spacing:-.02em;text-wrap:balance}
+.lede{color:var(--muted);font-size:13.5px;margin-top:5px;max-width:64ch}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:18px;margin-top:18px}
+.panel > h3{font-size:14px;letter-spacing:-.01em;margin-bottom:3px}
+.panel > .sub{font-size:12.5px;color:var(--muted);margin-bottom:14px;max-width:66ch}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:11px}
+label.fld{display:flex;flex-direction:column;gap:4px}
+label.fld > span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+label.fld input,label.fld select,label.fld textarea{background:var(--sunk);border:1px solid var(--rule-2);border-radius:7px;padding:7px 9px;font-size:13px;width:100%}
+label.fld textarea{min-height:110px;resize:vertical;line-height:1.5}
+label.fld input:focus,label.fld select:focus,label.fld textarea:focus{border-color:var(--accent);outline:none;background:var(--surface)}
+.steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.steps li{counter-increment:s;position:relative;padding-left:30px;font-size:13px;color:var(--ink-2)}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);font-family:var(--mono);font-size:10.5px;display:grid;place-items:center;font-weight:600}
+.steps li b{color:var(--ink)}
+.bmk{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:var(--paper);padding:9px 15px;border-radius:8px;font-weight:600;font-size:13.5px;cursor:grab;box-shadow:var(--shadow)}
+.bmk:hover{text-decoration:none;filter:brightness(1.15)}
+.dragrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 0 6px}
+code.inline{font-family:var(--mono);font-size:11.5px;background:var(--sunk);border:1px solid var(--rule);border-radius:4px;padding:1px 5px}
+.cover-out{background:var(--sunk);border:1px solid var(--rule);border-radius:8px;padding:11px;font-size:12.5px;white-space:pre-wrap;max-height:230px;overflow:auto;line-height:1.55}
+.note-line{font-size:12px;color:var(--muted);margin-top:9px}
+.covers{display:flex;flex-direction:column;gap:8px}
+table.mini{width:100%;font-size:12.5px}
+table.mini td{padding:5px 8px;border-bottom:1px solid var(--rule)}
+table.mini td:last-child{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.bar{height:5px;border-radius:3px;background:var(--sunk);overflow:hidden;margin-top:5px}
+.bar > i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(120%);background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:9px;font-size:13px;z-index:200;transition:transform .2s;box-shadow:var(--shadow);max-width:90vw;text-align:center}
+.toast.on{transform:translateX(-50%)}
+@media (max-width:1000px){
+  .explore{grid-template-columns:1fr}
+  aside.rail{position:static;max-height:none;border-right:none;border-bottom:1px solid var(--rule)}
+  .tbl-scroll{overflow-x:auto}
+  table{min-width:900px}
+  thead th{top:0}
+  .tablebar{position:static}
+  .board{grid-template-columns:repeat(6,minmax(170px,1fr))}
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><b>Requisition Desk</b><span id="brandsub">890 verified roles</span></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-view="explore" aria-selected="true">Roles</button>
+      <button role="tab" data-view="board" aria-selected="false">Pipeline</button>
+      <button role="tab" data-view="auto" aria-selected="false">Autofill</button>
+      <button role="tab" data-view="data" aria-selected="false">Data</button>
+    </nav>
+    <div class="top-right">
+      <div class="pulse" id="pulse"></div>
+      <button class="btn sm" id="btn-save-file">Back up</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ ROLES ============ -->
+<main id="v-explore" class="on">
+<div class="explore">
+  <aside class="rail" id="rail"></aside>
+  <section>
+    <div class="tablebar">
+      <div class="searchwrap">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+        <input id="q" type="search" placeholder="Search title, firm, city, requirements…  ( / )" autocomplete="off">
+      </div>
+      <div class="count" id="count"></div>
+      <div class="presets" id="presets"></div>
+      <button class="btn sm" id="btn-shortlist-all">Shortlist page</button>
+      <button class="btn sm" id="btn-open-batch">Open 5 shortlisted</button>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <colgroup><col class="c-tier"><col class="c-firm"><col class="c-role"><col class="c-track"><col class="c-loc"><col class="c-sig"><col class="c-band"><col class="c-stage"></colgroup>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="morebar" id="more"></div>
+    <div class="empty" id="empty" hidden><b>Nothing matches those filters</b>Loosen a filter or clear the search.</div>
+  </section>
+</div>
+</main>
+
+<!-- ============ PIPELINE ============ -->
+<main id="v-board">
+  <div class="board-wrap">
+    <div class="tiles" id="tiles"></div>
+    <p class="hint">Drag a card between columns to move a stage, or click it to open the full posting record. Cards flag an application that has sat untouched for 14 days or more.</p>
+    <div class="board" id="board"></div>
+  </div>
+</main>
+
+<!-- ============ AUTOFILL ============ -->
+<main id="v-auto">
+  <div class="pagewrap">
+    <h1>Autofill</h1>
+    <p class="lede">Application forms live on Ashby, Greenhouse, Lever and Workday — other people's domains, which this page cannot reach into or embed. So the filling happens where the form is: a bookmarklet carries your profile into the tab and completes the fields there.</p>
+
+    <div class="panel">
+      <h3>Your profile</h3>
+      <p class="sub">Stays in this browser, and nothing here is sent anywhere. Your answers are written into the bookmarklet below, so drag a fresh copy onto your bar whenever you change something here.</p>
+      <div class="grid2" id="profile-form"></div>
+    </div>
+
+    <div class="panel">
+      <h3>The bookmarklet</h3>
+      <p class="sub">One install, then one click per application. It reads the labels on whatever form is open, fills every field it can match, ticks the work-authorisation and sponsorship answers, and leaves a panel listing what it filled and what still needs you.</p>
+      <div class="dragrow">
+        <a class="bmk" id="bmk" href="#" draggable="true" title="Drag me to your bookmarks bar">⌁ Fill this application</a>
+        <button class="btn" id="btn-copy-bmk">Copy the code instead</button>
+        <span class="count" id="bmk-size"></span>
+      </div>
+      <ol class="steps">
+        <li>Show your browser's bookmarks bar — <code class="inline">Ctrl/Cmd + Shift + B</code>.</li>
+        <li><b>Drag the black button onto the bar.</b> If dragging out of this page is blocked, press <b>Copy the code instead</b>, then make a new bookmark by hand and paste it as the URL.</li>
+        <li>Open a job's application form, then click the bookmark. <b>Nothing is submitted</b> — read the form, fix what it flagged, and press the real submit button yourself.</li>
+      </ol>
+      <p class="note-line">Handled by name: Ashby, Greenhouse, Lever and Workday — <b id="ats-cover">—</b> of the <span id="ats-total">—</span> roles. Everything else falls back to reading the form's own labels, which carries most of the remainder. Résumé uploads are a browser security boundary: no script can attach your file, so the bookmarklet highlights the upload box instead.</p>
+      <div class="eyebrow" style="margin:16px 0 6px">What each system needs from you</div>
+      <table class="mini" id="ats-table"></table>
+    </div>
+
+    <div class="panel">
+      <h3>Cover letter</h3>
+      <p class="sub">One template, rendered per role. Use <code class="inline">{{firm}}</code>, <code class="inline">{{title}}</code>, <code class="inline">{{location}}</code>, <code class="inline">{{track}}</code>, <code class="inline">{{tier}}</code>. The bookmarklet fills any cover-letter field it finds, reading the firm and title off the page it is on, so one install covers every application. Open a role here and press <b>Copy letter</b> when you want the exact version instead.</p>
+      <div class="covers">
+        <label class="fld"><span>Template</span><textarea id="cover-tpl"></textarea></label>
+        <div>
+          <div class="eyebrow" style="margin-bottom:6px">Preview against a sample role</div>
+          <div class="cover-out" id="cover-preview"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ============ DATA ============ -->
+<main id="v-data">
+  <div class="pagewrap">
+    <h1>Data</h1>
+    <p class="lede">Your tracker lives in this browser's storage. Back it up before you clear browsing data, and to carry the pipeline to another machine.</p>
+    <div class="panel">
+      <h3>Backup and restore</h3>
+      <p class="sub" id="storage-state"></p>
+      <div class="dragrow" style="margin-top:0">
+        <button class="btn primary" id="btn-export">Download tracker JSON</button>
+        <button class="btn" id="btn-copy-json">Copy to clipboard</button>
+        <button class="btn" id="btn-import">Restore from file…</button>
+        <button class="btn" id="btn-csv">Export applications CSV</button>
+        <input type="file" id="file-in" accept=".json,application/json" hidden>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>The role set</h3>
+      <p class="sub" id="set-summary">Each role was read off the hiring firm's own board or ATS. Counts below are of the whole set, not the current filter.</p>
+      <div class="grid2">
+        <div><div class="eyebrow" style="margin-bottom:7px">By track</div><table class="mini" id="stat-track"></table></div>
+        <div><div class="eyebrow" style="margin-bottom:7px">By region</div><table class="mini" id="stat-region"></table></div>
+        <div><div class="eyebrow" style="margin-bottom:7px">By tier</div><table class="mini" id="stat-tier"></table></div>
+        <div><div class="eyebrow" style="margin-bottom:7px">Application system</div><table class="mini" id="stat-ats"></table></div>
+        <div><div class="eyebrow" style="margin-bottom:7px">Link check</div><table class="mini" id="stat-link"></table></div>
+        <div><div class="eyebrow" style="margin-bottom:7px">Came from</div><table class="mini" id="stat-src"></table></div>
+        <div><div class="eyebrow" style="margin-bottom:7px">Seniority signal</div><table class="mini" id="stat-sen"></table></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Reset</h3>
+      <p class="sub">Clears every status, date and note. The role set is untouched.</p>
+      <button class="btn" id="btn-reset">Clear the tracker</button>
+    </div>
+  </div>
+</main>
+</div>
+
+<div class="drawer" id="drawer" role="dialog" aria-modal="false" aria-label="Role detail"></div>
+<div class="toast" id="toast"></div>
+<div id="nostore" hidden style="position:fixed;bottom:0;left:0;right:0;z-index:150;background:var(--crit-soft);border-top:1px solid var(--crit);color:var(--ink);padding:8px 16px;font-size:12.5px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap">
+  <span><b>This browser will not let the page save.</b> Your pipeline lasts until you close the tab — back it up before you go.</span>
+  <button class="btn sm" id="nostore-save">Download backup</button>
+</div>
+
+<script type="module">
+/* ---------------- github-backed storage ---------------- */
+const GH_KEY = 'reqdesk.github';
+let GH = {repo:'Sou-ly/tech-roles', token:''};
+try { GH = {...GH, ...(JSON.parse(localStorage.getItem(GH_KEY)) || {})}; } catch(e){}
+const api = path => 'https://api.github.com/repos/' + GH.repo + '/contents/' + path;
+const ghHeaders = extra => ({'Authorization':'Bearer '+GH.token, 'X-GitHub-Api-Version':'2022-11-28', ...extra});
+
+function b64encode(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+function b64decode(b64){
+  return new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g,'')), c => c.charCodeAt(0)));
+}
+
+function setupScreen(msg){
+  return new Promise(done => {
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;inset:0;z-index:300;background:var(--paper);display:grid;place-items:center;padding:20px';
+    div.innerHTML = '<div style="max-width:480px;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:24px">'
+      + '<h2 style="font-size:17px;margin-bottom:6px">Connect to GitHub</h2>'
+      + '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">The roles and your tracker live in a private repo. Paste a fine-grained personal access token with <b>Contents read and write</b> on that one repo. It never leaves this browser.</p>'
+      + (msg ? '<p style="font-size:12.5px;color:var(--crit);margin-bottom:10px"></p>' : '')
+      + '<label class="fld" style="margin-bottom:10px"><span>Repository</span><input id="gh-repo"></label>'
+      + '<label class="fld" style="margin-bottom:14px"><span>Token</span><input id="gh-token" type="password" placeholder="github_pat_..."></label>'
+      + '<button class="btn primary" id="gh-go">Connect</button></div>';
+    if (msg) div.querySelector('p + p').textContent = msg;
+    div.querySelector('#gh-repo').value = GH.repo;
+    document.body.appendChild(div);
+    div.querySelector('#gh-go').onclick = () => {
+      GH.repo = div.querySelector('#gh-repo').value.trim();
+      GH.token = div.querySelector('#gh-token').value.trim();
+      if (!GH.repo || !GH.token) return;
+      localStorage.setItem(GH_KEY, JSON.stringify(GH));
+      div.remove(); done();
+    };
+  });
+}
+
+async function fetchRoles(){
+  const r = await fetch(api('data/roles.json'), {headers: ghHeaders({'Accept':'application/vnd.github.raw+json'})});
+  if (!r.ok) throw new Error('roles.json: HTTP ' + r.status);
+  return r.json();
+}
+
+let TRACKER_SHA = null;
+async function fetchTracker(){
+  const r = await fetch(api('tracker.json'), {headers: ghHeaders({'Accept':'application/vnd.github+json'})});
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('tracker.json: HTTP ' + r.status);
+  const j = await r.json();
+  TRACKER_SHA = j.sha;
+  return JSON.parse(b64decode(j.content));
+}
+
+let DATA = null, REMOTE_TRACKER = null;
+{
+  let msg = '';
+  while (true) {
+    if (!GH.token) await setupScreen(msg);
+    try { DATA = await fetchRoles(); break; }
+    catch(e){ GH.token = ''; msg = 'Could not load the roles: ' + e.message; }
+  }
+}
+REMOTE_TRACKER = await fetchTracker().catch(() => null);
+
+let pushTimer = null, pushing = false, dirty = false;
+function schedulePush(){
+  dirty = true; renderSync();
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushTracker, 1500);
+}
+async function pushTracker(){
+  if (pushing) { schedulePush(); return; }
+  pushing = true; dirty = false; renderSync();
+  try {
+    const put = () => fetch(api('tracker.json'), {
+      method:'PUT',
+      headers: ghHeaders({'Accept':'application/vnd.github+json'}),
+      body: JSON.stringify({message:'tracker update',
+                            content: b64encode(JSON.stringify(STATE, null, 1)),
+                            ...(TRACKER_SHA ? {sha: TRACKER_SHA} : {})})
+    });
+    let r = await put();
+    if (r.status === 409 || r.status === 422) {
+      // Another device pushed first: take its newer entries, then write on top.
+      const remote = await fetchTracker().catch(() => null);
+      if (remote) mergeEntries(remote.entries || {});
+      r = await put();
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    TRACKER_SHA = (await r.json()).content.sha;
+  } catch(e) {
+    dirty = true;
+    toast('Sync failed - kept locally, retrying');
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushTracker, 15000);
+  }
+  pushing = false; renderSync();
+}
+
+/* Per role, the entry touched most recently wins. */
+function mergeEntries(theirs){
+  for (const k of Object.keys(theirs)) {
+    const mine = STATE.entries[k];
+    if (!mine || (theirs[k].up || '') > (mine.up || '')) STATE.entries[k] = theirs[k];
+  }
+}
+
+function applyRemote(remote){
+  if (!remote) { if (Object.keys(STATE.entries).length) schedulePush(); return; }
+  const local = STATE.entries;
+  STATE.entries = {};
+  mergeEntries(remote.entries || {});
+  mergeEntries(local);                       // a locally-cached change that never pushed
+  STATE.profile = {...DEFAULT_PROFILE, ...(remote.profile || STATE.profile || {})};
+  if (JSON.stringify(STATE.entries) !== JSON.stringify(remote.entries || {})) schedulePush();
+}
+
+function renderSync(){
+  let el = document.getElementById('sync-state');
+  if (!el) {
+    el = document.createElement('button');
+    el.id = 'sync-state';
+    el.title = 'Click to reconnect GitHub';
+    el.style.cssText = 'font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer';
+    el.onclick = async () => { await setupScreen(''); location.reload(); };
+    document.querySelector('.top-right').prepend(el);
+  }
+  el.textContent = pushing ? 'syncing' : dirty ? 'unsynced' : 'synced';
+  el.style.color = pushing ? 'var(--amber)' : dirty ? 'var(--crit)' : 'var(--good)';
+}
+
+addEventListener('beforeunload', ev => {
+  if (dirty || pushing) { ev.preventDefault(); ev.returnValue = ''; }
+});
+
+const ROLES = DATA.roles, FIRMS = DATA.firms, REASONS = DATA.reasons;
+ROLES.forEach(r => { r.firm = FIRMS[r.f]; r.firmShort = r.firm.split(/\s+\/\s+|\s+\(/)[0].trim(); });
+/* The search corpus is ~9 MB. Building it at boot costs a visible pause, so each
+   row indexes itself the first time a search actually reads it. */
+function blobOf(r){
+  return r.blob || (r.blob = (r.firm+' '+r.ti+' '+r.l+' '+r.rg+' '+r.tr+' '+r.s+' '+r.q+' '+r.e+' '+r.c).toLowerCase());
+}
+
+const STAGES = [
+  {k:'saved',     label:'Shortlist'},
+  {k:'applied',   label:'Applied'},
+  {k:'screen',    label:'Screen'},
+  {k:'interview', label:'Interview'},
+  {k:'offer',     label:'Offer'},
+  {k:'closed',    label:'Closed'}
+];
+const STAGE_LABEL = Object.fromEntries(STAGES.map(s=>[s.k,s.label]));
+
+/* ---------------- storage ---------------- */
+const KEY = 'reqdesk.v1';
+let memoryOnly = false;
+const DEFAULT_PROFILE = {
+  firstName:'', lastName:'', email:'', phone:'', city:'', country:'',
+  linkedin:'', github:'', website:'', pronouns:'',
+  authEU:'yes', authUK:'yes', authUS:'no', sponsorship:'yes',
+  notice:'', salary:'', company:'', yoe:'', source:'Company website', resumeName:'',
+  cover:"Dear {{firm}} hiring team,\n\nI'm applying for the {{title}} role in {{location}}. My work sits squarely in {{track}} — and {{firm}} is one of the few places where that work is the product rather than a supporting function.\n\nHappy to walk through specifics whenever suits.\n\nBest,\n"
+};
+let STATE = {entries:{}, profile:{...DEFAULT_PROFILE}};
+
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      STATE.entries = p.entries || {};
+      STATE.profile = {...DEFAULT_PROFILE, ...(p.profile||{})};
+    }
+    localStorage.setItem(KEY+'.probe','1'); localStorage.removeItem(KEY+'.probe');
+  } catch(e) { memoryOnly = true; }
+}
+function save(){
+  schedulePush();
+  if (memoryOnly) return;
+  try { localStorage.setItem(KEY, JSON.stringify(STATE)); }
+  catch(e) { memoryOnly = true; renderStorageState(); }
+}
+load();
+applyRemote(REMOTE_TRACKER);
+renderSync();
+
+const today = () => new Date().toISOString().slice(0,10);
+const entry = i => STATE.entries[i];
+function setStage(i, stage){
+  const e = STATE.entries[i] || {};
+  if (stage === null || e.st === stage) { delete STATE.entries[i]; }
+  else {
+    e.st = stage;
+    e.up = today();
+    if (stage === 'applied' && !e.dt) e.dt = today();
+    STATE.entries[i] = e;
+  }
+  save(); renderAll();
+}
+function setNote(i, txt){
+  const e = STATE.entries[i] || {st:'saved', up:today()};
+  e.nt = txt; STATE.entries[i] = e; save();
+}
+
+/* ---------------- toast / clipboard ---------------- */
+let toastT;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2600);
+}
+async function copyText(txt, what){
+  try { await navigator.clipboard.writeText(txt); toast(what+' copied'); return true; }
+  catch(e){}
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){}
+  ta.remove();
+  toast(ok ? what+' copied' : 'Copy blocked — use Download instead');
+  return ok;
+}
+
+/* A band reads "USA, CA, Cupertino: $136,600-$236,000/yr" — squeeze it to "$137–236k". */
+function shortComp(c){
+  if (!c) return '';
+  const cur = (c.match(/[£$€¥]|CHF|SGD|JPY|GBP|USD|EUR/) || [''])[0];
+  const nums = (c.match(/\d[\d,.]*\s*[kK]?/g) || [])
+    .map(x => { const n = parseFloat(x.replace(/,/g,'')); return /[kK]\s*$/.test(x) ? n*1000 : n; })
+    .filter(n => n >= 1000);
+  if (!nums.length) return c.slice(0,22);
+  const lo = Math.min(...nums), hi = Math.max(...nums);
+  const k = n => Math.round(n/1000) + 'k';
+  return cur + (lo === hi ? k(lo) : k(lo) + '–' + k(hi));
+}
+
+/* ---------------- filters ---------------- */
+const F = {q:'', tier:new Set(), region:new Set(), track:new Set(), sen:new Set(), ats:new Set(),
+           stage:new Set(), link:new Set(), src:new Set(),
+           comp:false, sponsor:false, untracked:false, preset:null};
+const SRC_LABEL = {agent:'Research pass 2', harvest:'Board harvest', 'agent-v1':'Research pass 1'};
+const LINK_LABEL = {ok:'Verified reachable', unchecked:'Never checked', broken:'Broken or gone'};
+const linkClass = r => r.ok ? 'ok' : (r.uc === 'unchecked' ? 'unchecked' : 'broken');
+
+/* The merge pipeline's own screen, reproduced so it is one click away rather than
+   baked into the data. Nothing is filtered until you ask for it. */
+const TRACKS_IN_SCOPE = new Set(['ML Performance','ML Systems','HDL/Silicon',
+  'Computer Architecture','C++/Systems','Robotics','Finance Systems']);
+function mergeKeep(r){
+  if (!['T1','T2','T3','T4'].includes(r.t)) return false;
+  if (r.rg === 'Elsewhere') return false;
+  if (!TRACKS_IN_SCOPE.has(r.tr)) return false;
+  if (r.s === 'senior' || r.s === 'student') return false;
+  if (!r.ok || r.rdm) return false;
+  if (r.rg === 'US' && r.g) return false;
+  return true;
+}
+const PRESETS = [
+  {k:null,      label:'Everything', hint:'no filtering at all'},
+  {k:'merge',   label:'Merge screen', hint:"the pipeline's own rules: in-scope track and location, T1–T4, not senior, live link, no US sponsorship gate"},
+  {k:'live',    label:'Live links', hint:'only URLs that answered when last checked'}
+];
+let SORT = {k:'tier', dir:1};
+
+function tally(key){
+  const m = new Map();
+  ROLES.forEach(r => m.set(r[key], (m.get(r[key])||0)+1));
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+}
+const ATS_LABEL = {ashby:'Ashby', greenhouse:'Greenhouse', lever:'Lever', workday:'Workday',
+  smartrecruiters:'SmartRecruiters', icims:'iCIMS', eightfold:'Eightfold',
+  meta:'Meta', amazon:'Amazon', bytedance:'ByteDance', other:'Company site'};
+const ATS_NATIVE = ['ashby','greenhouse','lever','workday'];
+
+function passes(r){
+  if (F.preset === 'merge' && !mergeKeep(r)) return false;
+  if (F.preset === 'live' && !r.ok) return false;
+  if (F.q){
+    const terms = F.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const b = blobOf(r);
+    if (!terms.every(t => b.includes(t))) return false;
+  }
+  if (F.tier.size && !F.tier.has(r.t)) return false;
+  if (F.region.size && !F.region.has(r.rg)) return false;
+  if (F.track.size && !F.track.has(r.tr)) return false;
+  if (F.sen.size && !F.sen.has(r.s)) return false;
+  if (F.ats.size && !F.ats.has(r.a)) return false;
+  if (F.link.size && !F.link.has(linkClass(r))) return false;
+  if (F.src.size && !F.src.has(r.src)) return false;
+  if (F.comp && !r.c) return false;
+  if (F.sponsor && r.g) return false;
+  const e = entry(r.i);
+  if (F.untracked && e) return false;
+  if (F.stage.size && !(e && F.stage.has(e.st))) return false;
+  return true;
+}
+let VIEW_ROWS = [], WINDOW = 250;
+const PAGE = 250;
+function compute(){
+  WINDOW = PAGE;
+  VIEW_ROWS = ROLES.filter(passes);
+  const dir = SORT.dir, k = SORT.k;
+  VIEW_ROWS.sort((a,b)=>{
+    let x, y;
+    if (k === 'stage'){
+      const order = {saved:1, applied:2, screen:3, interview:4, offer:5, closed:6};
+      x = order[(entry(a.i)||{}).st] || 0; y = order[(entry(b.i)||{}).st] || 0;
+    } else if (k === 'comp'){
+      const amt = r => { const m = (shortComp(r.c).match(/(\d+)k$/)||[])[1]; return m ? +m : -1; };
+      x = amt(a); y = amt(b);
+    }
+    else { x = String(a[k]||'').toLowerCase(); y = String(b[k]||'').toLowerCase(); }
+    if (x < y) return -dir; if (x > y) return dir;
+    return a.firm.localeCompare(b.firm) || a.ti.localeCompare(b.ti);
+  });
+}
+
+/* ---------------- rail ---------------- */
+function chipRow(field, entries, labelFn){
+  return `<div class="chips">` + entries.map(([v,n]) =>
+    `<button class="chip" data-f="${field}" data-v="${esc(v)}" aria-pressed="${F[field].has(v)}">${esc(labelFn?labelFn(v):v)}<i>${n}</i></button>`
+  ).join('') + `</div>`;
+}
+function renderRail(){
+  const stageCounts = {};
+  Object.values(STATE.entries).forEach(e => stageCounts[e.st] = (stageCounts[e.st]||0)+1);
+  document.getElementById('rail').innerHTML = `
+    <div class="fgroup"><span class="eyebrow">Firm tier</span>${chipRow('tier', tally('t').sort((a,b)=>a[0].localeCompare(b[0])))}</div>
+    <div class="fgroup"><span class="eyebrow">Track</span>${chipRow('track', tally('tr'))}</div>
+    <div class="fgroup"><span class="eyebrow">Region</span>${chipRow('region', tally('rg'))}</div>
+    <div class="fgroup"><span class="eyebrow">Seniority signal</span>${chipRow('sen', tally('s'))}</div>
+    <div class="fgroup"><span class="eyebrow">Applies through</span>${chipRow('ats', tally('a'), v=>ATS_LABEL[v]||v)}</div>
+    <div class="fgroup"><span class="eyebrow">Link check</span>
+      <div class="chips">${['ok','unchecked','broken'].map(k=>{
+        const n = ROLES.filter(r=>linkClass(r)===k).length;
+        return n ? `<button class="chip" data-f="link" data-v="${k}" aria-pressed="${F.link.has(k)}">${LINK_LABEL[k]}<i>${n}</i></button>` : '';
+      }).join('')}</div>
+    </div>
+    <div class="fgroup"><span class="eyebrow">Came from</span>${chipRow('src', tally('src'), v=>SRC_LABEL[v]||v)}</div>
+    <div class="fgroup"><span class="eyebrow">My stage</span>
+      <div class="chips">${STAGES.map(s=>
+        `<button class="chip" data-f="stage" data-v="${s.k}" aria-pressed="${F.stage.has(s.k)}">${s.label}<i>${stageCounts[s.k]||0}</i></button>`).join('')}</div>
+    </div>
+    <div class="fgroup"><span class="eyebrow">Narrow</span>
+      <label class="toggle"><input type="checkbox" data-t="comp" ${F.comp?'checked':''}> Publishes a salary band</label>
+      <label class="toggle"><input type="checkbox" data-t="sponsor" ${F.sponsor?'checked':''}> Drop any US work-eligibility gate</label>
+      <label class="toggle"><input type="checkbox" data-t="untracked" ${F.untracked?'checked':''}> Not yet touched</label>
+    </div>
+    <div class="fgroup"><button class="btn sm" id="btn-clear" style="width:100%">Clear all filters</button></div>`;
+}
+
+/* ---------------- table ---------------- */
+const COLS = [
+  {k:'t',  label:'Tier',  w:'1%'},
+  {k:'firm', label:'Firm'},
+  {k:'ti', label:'Role'},
+  {k:'tr', label:'Track'},
+  {k:'l',  label:'Location'},
+  {k:'s',  label:'Signal'},
+  {k:'c',  label:'Band', sk:'comp'},
+  {k:'stage', label:'Stage'}
+];
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderPresets(){
+  document.getElementById('presets').innerHTML = PRESETS.map(p=>
+    `<button data-preset="${p.k||''}" class="${F.preset===p.k?'on':''}" title="${esc(p.hint)}">${p.label}</button>`
+  ).join('');
+  document.querySelectorAll('#presets button').forEach(b=>b.onclick = ()=>{
+    F.preset = b.dataset.preset || null; renderAll();
+  });
+}
+function renderTable(){
+  document.getElementById('thead').innerHTML = COLS.map(c=>{
+    const key = c.sk || c.k;
+    return `<th data-k="${key}" class="${SORT.k===key?'sorted':''}">${c.label}${SORT.k===key?(SORT.dir>0?' ↑':' ↓'):''}</th>`;
+  }).join('');
+  const shown = VIEW_ROWS.slice(0, WINDOW);
+  const rows = shown.map(r=>{
+    const e = entry(r.i);
+    const st = e ? e.st : 'none';
+    const flag = (r.ns===true?'<span class="flag">NO-SPON</span> ':'') + (r.up===true?'<span class="flag">US-PERSON</span>':'');
+    return `<tr data-i="${r.i}" class="${SELECTED===r.i?'sel':''}">
+      <td><span class="tier ${r.t}">${r.t}</span></td>
+      <td class="t-firm" title="${esc(r.firm)}">${esc(r.firmShort)}</td>
+      <td class="t-title">${esc(r.ti)} ${flag}</td>
+      <td class="t-wrap">${esc(r.tr)}</td>
+      <td class="t-loc" title="${esc(r.l)}">${esc(r.l)}</td>
+      <td class="t-wrap">${esc(r.s)}</td>
+      <td class="t-comp" title="${esc(r.c)}">${esc(shortComp(r.c))}</td>
+      <td>${st==='none' ? '<span style="color:var(--faint)">—</span>' : `<span class="pill st-${st}">${STAGE_LABEL[st]}</span>`}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tbody').innerHTML = rows;
+  document.getElementById('empty').hidden = VIEW_ROWS.length > 0;
+  const tracked = VIEW_ROWS.filter(r=>entry(r.i)).length;
+  const more = VIEW_ROWS.length - shown.length;
+  document.getElementById('more').innerHTML = more
+    ? `<button class="btn" id="btn-more">Show ${Math.min(more, PAGE)} more · ${more.toLocaleString('en-US')} left</button>` : '';
+  if (more) document.getElementById('btn-more').onclick = () => { WINDOW += PAGE; renderTable(); };
+  document.getElementById('count').innerHTML =
+    `<b>${VIEW_ROWS.length.toLocaleString('en-US')}</b> of ${ROLES.length.toLocaleString('en-US')} roles · <b>${tracked}</b> tracked`
+    + (more ? ` · showing ${shown.length.toLocaleString('en-US')}` : '');
+}
+
+/* ---------------- drawer ---------------- */
+let SELECTED = null;
+function openDrawer(i){
+  SELECTED = i;
+  const r = ROLES.find(x=>x.i===i), e = entry(i) || {};
+  const reqs = r.q ? r.q.split('|').map(s=>s.trim()).filter(Boolean) : [];
+  document.getElementById('drawer').innerHTML = `
+    <div class="dr-head">
+      <div style="flex:1">
+        <span class="tier ${r.t}">${r.t}</span>
+        <h2 style="margin-top:7px">${esc(r.ti)}</h2>
+        <div class="sub">${esc(r.firm)} · ${esc(r.l)} · ${esc(r.rg)}</div>
+      </div>
+      <button class="dr-close" id="dr-close" aria-label="Close">×</button>
+    </div>
+    <div class="stagerow">
+      ${STAGES.map(s=>`<button data-stage="${s.k}" aria-pressed="${e.st===s.k}">${s.label}</button>`).join('')}
+    </div>
+    <div class="dr-actions">
+      <a class="btn primary" href="${esc(r.u)}" target="_blank" rel="noopener" id="dr-open">Open posting ↗</a>
+      <button class="btn" id="dr-apply">Open &amp; mark applied</button>
+      <button class="btn" id="dr-letter">Copy letter</button>
+      <button class="btn" id="dr-url">Copy link</button>
+    </div>
+    <div class="dr-body">
+      ${(r.ns===true||r.up===true) ? `<div class="warnbox"><b>Eligibility gate.</b> ${r.ns===true?'This posting states it does not sponsor visas. ':''}${r.up===true?'Restricted to US persons (citizen / permanent resident).':''}</div>`:''}
+      <div class="sec">
+        <span class="eyebrow">Record</span>
+        <dl class="kv">
+          <dt>Track</dt><dd>${esc(r.tr)}${r.dm?' · '+esc(r.dm):''}</dd>
+          <dt>Signal</dt><dd>${esc(r.s)}</dd>
+          <dt>Band</dt><dd>${r.c ? esc(r.c) : '<span style="color:var(--faint)">not published</span>'}</dd>
+          <dt>Applies via</dt><dd>${ATS_LABEL[r.a]||'Company site'}</dd>
+          <dt>Live as of</dt><dd class="mono">${esc(r.lv)}</dd>
+          <dt>Link check</dt><dd>${r.ok ? '<span style="color:var(--good)">'+esc(r.uc)+'</span>'
+            : '<span style="color:var(--crit)">'+esc(r.uc)+'</span>'}${r.rdm?' · redirected to a different job':''}</dd>
+          <dt>Came from</dt><dd>${esc(SRC_LABEL[r.src]||r.src)}</dd>
+          ${e.dt?`<dt>Applied</dt><dd class="mono">${esc(e.dt)}</dd>`:''}
+        </dl>
+      </div>
+      ${r.e?`<div class="sec"><span class="eyebrow">Eligibility</span><p>${esc(r.e)}</p></div>`:''}
+      ${reqs.length?`<div class="sec"><span class="eyebrow">What they ask for</span><ul class="reqs">${reqs.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
+      ${r.n?`<div class="sec"><span class="eyebrow">Research note</span><p>${esc(r.n)}</p></div>`:''}
+      <div class="sec"><span class="eyebrow">Why this tier</span><p style="font-size:12px;color:var(--muted)">${esc(REASONS[r.tz])}</p></div>
+      <div class="sec">
+        <span class="eyebrow">My notes</span>
+        <textarea class="note" id="dr-note" placeholder="Referral, recruiter name, interview date, what to prepare…">${esc(e.nt||'')}</textarea>
+      </div>
+    </div>`;
+  document.getElementById('drawer').classList.add('on');
+  document.getElementById('dr-close').onclick = closeDrawer;
+  document.getElementById('dr-note').oninput = ev => setNote(i, ev.target.value);
+  document.getElementById('dr-url').onclick = () => copyText(r.u, 'Link');
+  document.getElementById('dr-letter').onclick = () => copyText(renderCover(r), 'Letter');
+  document.getElementById('dr-apply').onclick = () => {
+    window.open(r.u, '_blank', 'noopener');
+    setStage(i, 'applied');
+    toast('Marked applied — ' + r.firm);
+  };
+  document.querySelectorAll('.stagerow button').forEach(b => b.onclick = () => setStage(i, b.dataset.stage));
+  renderTable();
+}
+function closeDrawer(){
+  SELECTED = null;
+  document.getElementById('drawer').classList.remove('on');
+  renderTable();
+}
+
+/* ---------------- board ---------------- */
+function daysSince(d){ if(!d) return 0; return Math.floor((Date.now() - new Date(d+'T00:00:00').getTime())/864e5); }
+function renderBoard(){
+  const es = Object.entries(STATE.entries).map(([i,e]) => ({r: ROLES.find(x=>x.i===+i), e, i:+i})).filter(x=>x.r);
+  const applied = es.filter(x=>['applied','screen','interview','offer'].includes(x.e.st));
+  const inflight = es.filter(x=>['screen','interview'].includes(x.e.st)).length;
+  const replied = es.filter(x=>['screen','interview','offer'].includes(x.e.st)).length;
+  const rate = applied.length ? Math.round(replied/applied.length*100) : 0;
+  const week = es.filter(x => x.e.dt && daysSince(x.e.dt) <= 7).length;
+  const tiles = [
+    {n: es.filter(x=>x.e.st==='saved').length, l:'Shortlisted'},
+    {n: applied.length, l:'Applied'},
+    {n: week, l:'Applied this week'},
+    {n: inflight, l:'In conversation', c:'hot'},
+    {n: es.filter(x=>x.e.st==='offer').length, l:'Offers', c:'win'},
+    {n: rate+'%', l:'Reply rate', bar: rate}
+  ];
+  document.getElementById('tiles').innerHTML = tiles.map(t=>
+    `<div class="tile ${t.c||''}"><b class="num">${t.n}</b><span class="eyebrow">${t.l}</span>${t.bar!=null?`<div class="bar"><i style="width:${t.bar}%"></i></div>`:''}</div>`).join('');
+
+  document.getElementById('board').innerHTML = STAGES.map(s=>{
+    const items = es.filter(x=>x.e.st===s.k)
+      .sort((a,b)=> (b.e.up||'').localeCompare(a.e.up||''));
+    return `<div class="col" data-stage="${s.k}">
+      <header><b>${s.label}</b><i>${items.length}</i></header>
+      ${items.map(x=>{
+        const age = daysSince(x.e.up);
+        const stale = age >= 14 && !['saved','closed'].includes(x.e.st);
+        return `<div class="card" draggable="true" data-i="${x.i}">
+          <b>${esc(x.r.ti)}</b>
+          <span>${esc(x.r.firmShort)} · ${esc(x.r.l)}</span>
+          <div class="meta"><span class="tier ${x.r.t}">${x.r.t}</span>
+            <span class="${stale?'agebad':''}">${x.e.dt?('applied '+x.e.dt):(age+'d')}${stale?' · stale':''}</span></div>
+        </div>`;
+      }).join('') || `<div style="font-size:11.5px;color:var(--faint);padding:6px 2px">empty</div>`}
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.card').forEach(c=>{
+    c.addEventListener('dragstart', ev=>{ ev.dataTransfer.setData('text/plain', c.dataset.i); c.classList.add('drag'); });
+    c.addEventListener('dragend', ()=>c.classList.remove('drag'));
+    c.addEventListener('click', ()=>{ show('explore'); openDrawer(+c.dataset.i); });
+  });
+  document.querySelectorAll('.col').forEach(col=>{
+    col.addEventListener('dragover', ev=>{ ev.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave', ()=>col.classList.remove('over'));
+    col.addEventListener('drop', ev=>{
+      ev.preventDefault(); col.classList.remove('over');
+      const i = +ev.dataTransfer.getData('text/plain');
+      if (!isNaN(i)) setStage(i, col.dataset.stage);
+    });
+  });
+}
+
+/* ---------------- pulse ---------------- */
+function renderPulse(){
+  const es = Object.values(STATE.entries);
+  const applied = es.filter(e=>['applied','screen','interview','offer'].includes(e.st)).length;
+  const live = es.filter(e=>['screen','interview'].includes(e.st)).length;
+  document.getElementById('pulse').innerHTML =
+    `<div><b>${es.filter(e=>e.st==='saved').length}</b><span>Short</span></div>
+     <div><b>${applied}</b><span>Applied</span></div>
+     <div><b style="color:var(--amber)">${live}</b><span>Live</span></div>`;
+}
+
+/* ---------------- profile + bookmarklet ---------------- */
+const PROFILE_FIELDS = [
+  {k:'firstName', l:'First name'}, {k:'lastName', l:'Last name'},
+  {k:'email', l:'Email', t:'email'}, {k:'phone', l:'Phone', t:'tel'},
+  {k:'city', l:'City'}, {k:'country', l:'Country'},
+  {k:'linkedin', l:'LinkedIn URL'}, {k:'github', l:'GitHub URL'},
+  {k:'website', l:'Portfolio / site'}, {k:'pronouns', l:'Pronouns'},
+  {k:'authUK', l:'Work authorised — UK', o:['yes','no']},
+  {k:'authEU', l:'Work authorised — EU', o:['yes','no']},
+  {k:'authUS', l:'Work authorised — US', o:['yes','no']},
+  {k:'sponsorship', l:'Will need sponsorship', o:['yes','no']},
+  {k:'notice', l:'Notice period'}, {k:'salary', l:'Salary expectation'},
+  {k:'company', l:'Current company'}, {k:'yoe', l:'Years of experience'},
+  {k:'source', l:'How did you hear about us'},
+  {k:'resumeName', l:'Résumé file name (reminder)'}
+];
+function renderProfile(){
+  document.getElementById('profile-form').innerHTML = PROFILE_FIELDS.map(f=>{
+    const v = STATE.profile[f.k] || '';
+    const input = f.o
+      ? `<select data-p="${f.k}">${f.o.map(o=>`<option ${v===o?'selected':''}>${o}</option>`).join('')}</select>`
+      : `<input data-p="${f.k}" type="${f.t||'text'}" value="${esc(v)}" autocomplete="off">`;
+    return `<label class="fld"><span>${f.l}</span>${input}</label>`;
+  }).join('');
+  document.querySelectorAll('[data-p]').forEach(el=>{
+    el.oninput = el.onchange = () => {
+      STATE.profile[el.dataset.p] = el.value; save(); buildBookmarklet();
+    };
+  });
+  document.getElementById('cover-tpl').value = STATE.profile.cover;
+  renderCoverPreview();
+}
+function renderCover(r){
+  return (STATE.profile.cover||'')
+    .replace(/\{\{firm\}\}/g, r.firm).replace(/\{\{title\}\}/g, r.ti)
+    .replace(/\{\{location\}\}/g, r.l).replace(/\{\{track\}\}/g, r.tr)
+    .replace(/\{\{tier\}\}/g, r.t);
+}
+function renderCoverPreview(){
+  const sample = ROLES.find(r=>r.t==='T1') || ROLES[0];
+  document.getElementById('cover-preview').textContent = renderCover(sample);
+}
+
+/* The function below is serialised into the bookmarklet and runs on the ATS page. */
+function ATS_FILL(P){
+  var filled = [], missing = [], seen = [];
+  /* Work out which role this page is, so the cover letter resolves here rather
+     than being frozen into the bookmarklet at install time. */
+  function detect(){
+    var firm = '', title = '', t = document.title || '';
+    var gh = t.match(/job application for (.+?) at (.+?)\s*$/i);
+    if (gh){ title = gh[1]; firm = gh[2]; }
+    var site = document.querySelector('meta[property="og:site_name"]');
+    if (!firm && site) firm = site.content || '';
+    if (!title){
+      var h = document.querySelector('[data-automation-id="jobPostingHeader"], h1, [class*="posting-headline" i] h2, [class*="job-title" i]');
+      if (h && h.textContent.trim().length < 120) title = h.textContent.trim();
+    }
+    if (!firm){
+      var parts = t.split(/\s+[–—|@]\s+|\s+-\s+/).map(function(x){ return x.trim(); }).filter(Boolean);
+      if (parts.length > 1){
+        /* whichever half is not the role title is the firm */
+        var nt = title.toLowerCase();
+        var cand = nt ? parts.filter(function(x){
+          var l = x.toLowerCase();
+          return l.indexOf(nt) === -1 && nt.indexOf(l) === -1;
+        }) : [];
+        firm = cand[0] || parts[parts.length-1];
+      }
+    }
+    firm = firm.replace(/\s*(careers|jobs|hiring|application)\s*$/i,'').trim();
+    var loc = document.querySelector('[class*="location" i]');
+    return {firm: firm, title: title, loc: loc ? loc.textContent.trim().slice(0,60) : ''};
+  }
+  var R = detect();
+  var host = location.hostname;
+  var SYS = /myworkdayjobs|\.wd\d/.test(host) || document.querySelector('[data-automation-id="legalNameSection_firstName"],[data-automation-id="jobPostingHeader"]') ? 'workday'
+           : /ashbyhq/.test(host) ? 'ashby'
+           : /greenhouse/.test(host) ? 'greenhouse'
+           : /lever\.co/.test(host) ? 'lever'
+           : /icims/.test(host) ? 'icims'
+           : /eightfold|app\.eightfold/.test(host) || document.querySelector('[class*="eightfold" i]') ? 'eightfold'
+           : 'generic';
+  var letter = (P.cover||'')
+    .replace(/\{\{firm\}\}/g, R.firm || 'your team')
+    .replace(/\{\{title\}\}/g, R.title || 'this role')
+    .replace(/\{\{location\}\}/g, R.loc || '')
+    .replace(/\{\{\w+\}\}/g, '')
+    .replace(/[ \t]{2,}/g, ' ').replace(/ +([,.])/g, '$1');
+  function norm(s){ return (s||'').replace(/\s+/g,' ').trim().toLowerCase(); }
+  function labelWithFor(id){
+    if (!id) return null;
+    var ls = document.getElementsByTagName('label');
+    for (var i = 0; i < ls.length; i++) if (ls[i].htmlFor === id) return ls[i];
+    return null;
+  }
+  function labelFor(el){
+    var bits = [];
+    var l = labelWithFor(el.id);
+    if (l) bits.push(l.textContent);
+    var lab = el.closest('label'); if (lab) bits.push(lab.textContent);
+    bits.push(el.getAttribute('aria-label'), el.placeholder, el.name, el.id);
+    var box = el.closest('[class*="field" i],[class*="question" i],[class*="form-group" i],fieldset,li,div');
+    for (var d=0; box && d<3; d++){
+      if (box.textContent && box.textContent.length < 400) { bits.push(box.textContent); break; }
+      box = box.parentElement;
+    }
+    var lbl = el.getAttribute('aria-labelledby');
+    if (lbl) lbl.split(/\s+/).forEach(function(id){ var n=document.getElementById(id); if(n) bits.push(n.textContent); });
+    return norm(bits.filter(Boolean).join(' | '));
+  }
+  function setVal(el, v){
+    var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    setter.call(el, v);
+    el.dispatchEvent(new Event('input', {bubbles:true}));
+    el.dispatchEvent(new Event('change', {bubbles:true}));
+    el.dispatchEvent(new Event('blur', {bubbles:true}));
+    el.style.outline = '2px solid #0d9488';
+  }
+  var full = ((P.firstName||'') + ' ' + (P.lastName||'')).trim();
+  var yes = /^y/i.test(P.authUK) || /^y/i.test(P.authEU) || /^y/i.test(P.authUS);
+  var RULES = [
+    [/first\s*name|given\s*name|^fname/, P.firstName],
+    [/last\s*name|surname|family\s*name|^lname/, P.lastName],
+    [/full\s*name|(^|\W)name(\W|$)/, full],
+    [/e-?mail/, P.email],
+    [/phone|mobile|telephone/, P.phone],
+    [/linked\s*-?in/, P.linkedin],
+    [/git\s*hub/, P.github],
+    [/portfolio|personal\s*(web)?site|website|other\s*url|blog/, P.website],
+    [/pronoun/, P.pronouns],
+    [/(current\s*)?(city|town)|where.*(based|located)|location(?!.*preference)/, P.city],
+    [/country|nation(?!al\s*id)/, P.country],
+    [/notice\s*period|when.*(start|available)|availability/, P.notice],
+    [/salary|compensation\s*expect|expected\s*(pay|comp)|desired\s*comp/, P.salary],
+    [/current\s*(company|employer)|present\s*employer|where.*work.*now/, P.company],
+    [/years\s*of\s*(relevant\s*)?experience|yoe|how\s*many\s*years/, P.yoe],
+    [/how\s*did\s*you\s*hear|referr?al\s*source|source|find\s*(out\s*)?about/, P.source],
+    [/cover\s*letter|why.*(interest|apply|join)|tell\s*us|anything\s*else|additional\s*info/, letter]
+  ];
+  var YESNO = [
+    [/sponsor|visa|immigration\s*(status|support)|require.*(sponsor|visa)/, /^y/i.test(P.sponsorship) ? 'yes' : 'no', 'sponsorship'],
+    [/legally\s*(authori|entitled|eligible)|right\s*to\s*work|authori[sz]ed\s*to\s*work|work\s*permit|eligible\s*to\s*work/, yes ? 'yes' : 'no', 'work authorisation']
+  ];
+  function pickOption(sel, want){
+    var opts = Array.prototype.slice.call(sel.options);
+    var hit = opts.filter(function(o){ return o.value && norm(o.textContent) === want; })[0]
+           || opts.filter(function(o){ return o.value && norm(o.textContent).indexOf(want) === 0; })[0];
+    if (!hit) return false;
+    sel.value = hit.value;
+    sel.dispatchEvent(new Event('change', {bubbles:true}));
+    sel.style.outline = '2px solid #0d9488';
+    return true;
+  }
+  /* ---- Workday ----
+     Workday ignores <label for>, keys everything off data-automation-id, and
+     renders its dropdowns as a button plus a popup listbox rather than a
+     <select>. It is also a wizard: each step is a separate page, so this runs
+     against whichever step is open and you click again on the next one. */
+  var wdQueue = [], drainWD;
+  if (SYS === 'workday'){
+    var WD_LABEL = {
+      legalNameSection_firstName:'first name', legalNameSection_lastName:'last name',
+      email:'email', userName:'username', 'phone-number':'phone', phoneNumber:'phone',
+      addressSection_city:'city', addressSection_addressLine1:'address',
+      linkedinQuestion:'linkedin', 'source--source':'how you heard about them'
+    };
+    var WD_TEXT = {
+      legalNameSection_firstName: P.firstName,
+      legalNameSection_lastName: P.lastName,
+      legalNameSection_middleName: '',
+      email: P.email,
+      userName: P.email,
+      'phone-number': P.phone,
+      phoneNumber: P.phone,
+      addressSection_city: P.city,
+      addressSection_addressLine1: '',
+      linkedinQuestion: P.linkedin,
+      'source--source': P.source
+    };
+    Object.keys(WD_TEXT).forEach(function(id){
+      var v = WD_TEXT[id];
+      if (!v) return;
+      var els = document.querySelectorAll('[data-automation-id="' + id + '"]');
+      Array.prototype.forEach.call(els, function(el){
+        if (!el.tagName || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return;
+        if (el.value) return;
+        setVal(el, v);
+        filled.push(WD_LABEL[id] || id);
+      });
+    });
+    if (document.querySelector('[data-automation-id="password"]') && !document.querySelector('[data-automation-id="password"]').value){
+      missing.push('Workday account password — pick one and save it in your password manager');
+    }
+    /* Queue the popup dropdowns: only one Workday menu can be open at a time. */
+    var btns = document.querySelectorAll('button[aria-haspopup="listbox"],[data-automation-id="selectShowAll"],button[data-automation-id*="dropdown" i]');
+    Array.prototype.forEach.call(btns, function(b){
+      var L = labelFor(b) || norm((b.closest('[data-automation-id]')||{}).textContent || '');
+      var box = b.closest('[data-automation-id^="formField"]') || b.parentElement;
+      if (box) L = norm(box.textContent).slice(0,200) + ' | ' + L;
+      var want = null, what = null;
+      for (var i = 0; i < YESNO.length; i++){
+        if (YESNO[i][0].test(L)){ want = YESNO[i][1]; what = YESNO[i][2]; break; }
+      }
+      if (!want && /country|phone\s*code/.test(L) && P.country){ want = norm(P.country); what = 'country'; }
+      if (!want && /how\s*did\s*you\s*hear|source/.test(L) && P.source){ want = norm(P.source); what = 'source'; }
+      if (want && (b.textContent||'').trim().length < 30) wdQueue.push({btn:b, want:want, what:what});
+    });
+    drainWD = function(){
+      var job = wdQueue.shift();
+      if (!job) return;
+      job.btn.click();
+      setTimeout(function(){
+        var opts = document.querySelectorAll('[role="option"],[data-automation-id="promptOption"],li[data-value]');
+        var hit = null;
+        Array.prototype.forEach.call(opts, function(o){
+          if (hit) return;
+          var t = norm(o.textContent);
+          if (t === job.want || t.indexOf(job.want) === 0) hit = o;
+        });
+        var more = document.getElementById('__rd_more');
+        if (hit){
+          hit.click(); filled.push(job.what + ' → ' + job.want);
+          if (more) more.innerHTML += '· ' + job.what + ' → ' + job.want + '<br>';
+        } else {
+          missing.push(job.what + ' — open the dropdown and pick it');
+          job.btn.click();
+          if (more) more.innerHTML += '<span style="color:#d7a353">· ' + job.what + ' — pick it yourself</span><br>';
+        }
+        setTimeout(drainWD, 260);
+      }, 320);
+    };
+  }
+
+  /* A Greenhouse or Ashby form embedded on a company domain sits in an iframe
+     the browser will not let this script cross. Say so rather than filling nothing. */
+  var foreign = Array.prototype.filter.call(document.querySelectorAll('iframe'), function(f){
+    try { return !f.contentDocument && /greenhouse|lever|ashby|icims|myworkday/.test(f.src||''); }
+    catch(e){ return true; }
+  });
+
+  var fields = document.querySelectorAll('input,textarea,select');
+  Array.prototype.forEach.call(fields, function(el){
+    var type = (el.type||'').toLowerCase();
+    if (type === 'hidden' || type === 'submit' || type === 'button' || el.disabled) return;
+    if (el.offsetParent === null && type !== 'radio') return;
+    var L = labelFor(el);
+    if (!L) return;
+    var required = el.required || /\*|required/.test(L);
+
+    if (type === 'file'){
+      el.style.outline = '2px dashed #d97706';
+      try { el.scrollIntoView({block:'center'}); } catch(e){}
+      missing.push('Attach ' + (P.resumeName || 'your résumé') + ' (uploads cannot be scripted)');
+      return;
+    }
+    if (type === 'radio' || type === 'checkbox'){
+      for (var y=0; y<YESNO.length; y++){
+        if (YESNO[y][0].test(L)){
+          var want = YESNO[y][1];
+          var own = norm((el.closest('label')||el.parentElement||{}).textContent||'') ||
+                    norm((labelWithFor(el.id)||{}).textContent||'');
+          if (own.indexOf(want) === 0 || own === want){
+            if (!el.checked) el.click();
+            filled.push(YESNO[y][2] + ' → ' + want);
+          }
+          return;
+        }
+      }
+      return;
+    }
+    if (el.tagName === 'SELECT'){
+      if (el.value && el.selectedIndex > 0) return;
+      for (var s=0; s<YESNO.length; s++){
+        if (YESNO[s][0].test(L)){
+          if (pickOption(el, YESNO[s][1])) filled.push(YESNO[s][2] + ' → ' + YESNO[s][1]);
+          return;
+        }
+      }
+      if (/country/.test(L) && P.country && pickOption(el, norm(P.country))) { filled.push('country'); return; }
+      if (/how\s*did\s*you\s*hear|source/.test(L) && P.source && pickOption(el, norm(P.source))) { filled.push('source'); return; }
+      if (required) missing.push(L.slice(0,60));
+      return;
+    }
+    if (el.value) { seen.push(L); return; }
+    for (var i=0; i<RULES.length; i++){
+      if (RULES[i][0].test(L)){
+        var v = RULES[i][1];
+        if (v){ setVal(el, v); filled.push(L.split('|')[0].slice(0,42).trim() || RULES[i][0].source.slice(0,20)); }
+        else if (required) missing.push(L.slice(0,60));
+        return;
+      }
+    }
+    if (required) missing.push(L.slice(0,60));
+  });
+
+  var old = document.getElementById('__reqdesk_panel'); if (old) old.remove();
+  var box = document.createElement('div');
+  box.id = '__reqdesk_panel';
+  box.style.cssText = 'position:fixed;top:14px;right:14px;z-index:2147483647;max-width:330px;max-height:70vh;overflow:auto;background:#16191a;color:#e9e7e1;font:12px/1.5 ui-monospace,Menlo,monospace;padding:12px 14px;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.45)';
+  function list(t, arr, col){
+    if (!arr.length) return '';
+    var u = arr.filter(function(v,i,a){ return a.indexOf(v)===i; }).slice(0,14);
+    return '<div style="margin-top:8px;color:'+col+'"><b>'+t+'</b><br>' +
+      u.map(function(x){ return '· ' + x.replace(/[<>&]/g,''); }).join('<br>') + '</div>';
+  }
+  var who = (R.title || '') + (R.firm ? ' · ' + R.firm : '');
+  function say(msg, col){
+    return '<div style="margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(215,163,83,.14);color:' + col + '">' + msg + '</div>';
+  }
+  var advice = '';
+  if (SYS === 'workday'){
+    advice += say('Workday runs one page per step. Fill this one, hit Next, then click the bookmark again.', '#d7a353');
+  }
+  if (foreign.length){
+    advice += say('The form itself is in an embedded frame from another domain, which no bookmarklet can reach. Open the apply link in its own tab and run this there.', '#d7a353');
+  }
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center">' +
+    '<b style="letter-spacing:.08em">REQUISITION DESK</b>' +
+    '<span id="__rd_x" style="cursor:pointer;opacity:.6;padding:0 4px">×</span></div>' +
+    (who ? '<div style="margin-top:4px;color:#4fbdad">' + who.replace(/[<>&]/g,'').slice(0,70) + '</div>' : '') +
+    '<div style="margin-top:6px;opacity:.7">' + SYS + ' · <span id="__rd_n">' + filled.length + '</span> filled · ' +
+      missing.length + ' need you · nothing submitted</div>' + advice +
+    list('FILLED', filled, '#4fbdad') + '<div id="__rd_more" style="color:#4fbdad"></div>' +
+    list('STILL NEEDS YOU', missing, '#d7a353') +
+    (letter ? '<div style="margin-top:10px"><button id="__rd_c" style="all:unset;cursor:pointer;background:#4fbdad;color:#0b0d0d;padding:5px 10px;border-radius:6px;font-weight:600">Copy cover letter</button></div>' : '');
+  document.body.appendChild(box);
+  document.getElementById('__rd_x').onclick = function(){ box.remove(); };
+  var cb = document.getElementById('__rd_c');
+  if (cb) cb.onclick = function(){ navigator.clipboard.writeText(letter); cb.textContent = 'Copied'; };
+  /* Workday's dropdowns run after the panel exists so their results can land in it. */
+  if (wdQueue.length){
+    var before = filled.length;
+    drainWD();
+    var tick = setInterval(function(){
+      var n = document.getElementById('__rd_n');
+      if (!n) { clearInterval(tick); return; }
+      n.textContent = filled.length;
+      if (!wdQueue.length && filled.length !== before){ clearInterval(tick); }
+    }, 400);
+    setTimeout(function(){ clearInterval(tick); }, 12000);
+  }
+}
+
+function buildBookmarklet(){
+  const p = {...STATE.profile};
+  const code = 'javascript:(' + ATS_FILL.toString() + ')(' + JSON.stringify(p) + ');void 0;';
+  const url = 'javascript:' + encodeURIComponent(code.slice(11));
+  const a = document.getElementById('bmk');
+  a.href = url;
+  document.getElementById('bmk-size').textContent = Math.round(url.length/1024*10)/10 + ' KB · regenerated live';
+  return url;
+}
+
+/* ---------------- data tab ---------------- */
+function renderStorageState(){
+  document.getElementById('nostore').hidden = !memoryOnly;
+  document.body.style.paddingBottom = memoryOnly ? '48px' : '';
+  document.getElementById('storage-state').textContent = memoryOnly
+    ? 'This browser is blocking local storage for this page, so the tracker only lives until you close the tab. Download a backup before you leave, and restore it next time.'
+    : 'Synced to the GitHub repo after every change, with a local copy in this browser. Click the sync chip in the top bar to reconnect.';
+}
+const ATS_NOTES = {
+  ashby:      ['Nothing — single page, standard labels.', 'full'],
+  greenhouse: ['Nothing. Company-branded boards embed the form in a frame; use the Open posting link so you land on greenhouse.io itself.', 'full'],
+  lever:      ['Nothing — single page, standard labels.', 'full'],
+  workday:    ['Sign in or create the account first, then click once per wizard step — Workday puts each on its own page. Its popup dropdowns are opened and picked one at a time.', 'full'],
+  eightfold:  ['Falls back to label reading. Text fields land; its custom pickers need you.', 'part'],
+  icims:      ['Falls back to label reading, and the form is often framed — open it in its own tab.', 'part'],
+  meta:       ['Falls back to label reading.', 'part'],
+  amazon:     ['Falls back to label reading; Amazon asks you to sign in first.', 'part'],
+  smartrecruiters: ['Falls back to label reading — its forms are plain, so most fields land.', 'part'],
+  bytedance:  ['Falls back to label reading, and it wants an account before the form.', 'part'],
+  other:      ['Falls back to label reading — whatever the company built.', 'part']
+};
+function renderATSTable(){
+  const t = document.getElementById('ats-table');
+  if (!t) return;
+  t.innerHTML = tally('a').map(([k,n])=>{
+    const [note, lvl] = ATS_NOTES[k] || ['', 'part'];
+    return `<tr>
+      <td style="white-space:nowrap"><b>${esc(ATS_LABEL[k]||k)}</b>
+        <span class="pill ${lvl==='full'?'st-offer':'st-screen'}" style="margin-left:6px">${lvl==='full'?'by name':'fallback'}</span></td>
+      <td style="text-align:left;font-family:inherit;color:var(--muted)">${esc(note)}</td>
+      <td>${n}</td></tr>`;
+  }).join('');
+}
+function renderStats(){
+  const rows = (id, pairs, labelFn) => {
+    document.getElementById(id).innerHTML = pairs.map(([k,n])=>
+      `<tr><td>${esc(labelFn?labelFn(k):k)}</td><td>${n}</td></tr>`).join('');
+  };
+  rows('stat-track', tally('tr'));
+  rows('stat-region', tally('rg'));
+  rows('stat-tier', tally('t').sort((a,b)=>a[0].localeCompare(b[0])));
+  rows('stat-ats', tally('a'), v=>ATS_LABEL[v]||v);
+  rows('stat-sen', tally('s'));
+  rows('stat-src', tally('src'), v=>SRC_LABEL[v]||v);
+  document.getElementById('stat-link').innerHTML = ['ok','unchecked','broken'].map(k=>{
+    const n = ROLES.filter(r=>linkClass(r)===k).length;
+    return n ? `<tr><td>${LINK_LABEL[k]}</td><td>${n}</td></tr>` : '';
+  }).join('');
+}
+function trackerJSON(){
+  return JSON.stringify({
+    kind:'requisition-desk', version:1, exported:new Date().toISOString(),
+    profile: STATE.profile,
+    entries: Object.entries(STATE.entries).map(([i,e])=>{
+      const r = ROLES.find(x=>x.i===+i) || {};
+      return {url:r.u, firm:r.firm, title:r.ti, location:r.l, ...e};
+    })
+  }, null, 2);
+}
+function applyImport(txt){
+  let p;
+  try { p = JSON.parse(txt); } catch(e){ toast('That file is not valid JSON'); return; }
+  const byUrl = new Map(ROLES.map(r=>[r.u, r.i]));
+  let hit = 0;
+  (p.entries||[]).forEach(e=>{
+    const i = byUrl.get(e.url);
+    if (i == null) return;
+    STATE.entries[i] = {st:e.st, dt:e.dt, nt:e.nt, up:e.up || today()};
+    hit++;
+  });
+  if (p.profile) STATE.profile = {...DEFAULT_PROFILE, ...p.profile};
+  save(); renderProfile(); renderAll();
+  toast('Restored ' + hit + ' tracked roles');
+}
+function trackerCSV(){
+  const head = ['stage','applied','updated','firm','title','location','region','tier','track','band','url','notes'];
+  const cell = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+  const lines = [head.join(',')];
+  Object.entries(STATE.entries).forEach(([i,e])=>{
+    const r = ROLES.find(x=>x.i===+i); if (!r) return;
+    lines.push([e.st, e.dt||'', e.up||'', r.firm, r.ti, r.l, r.rg, r.t, r.tr, r.c, r.u, e.nt||''].map(cell).join(','));
+  });
+  return lines.join('\n');
+}
+async function offerFile(name, body){
+  const dl = await (window.claude && window.claude.use ? window.claude.use('downloads') : null);
+  if (!dl) { copyText(body, 'Backup'); return; }
+  try { await dl.save({filename:name, data:body}); toast('Saved ' + name); }
+  catch(err){
+    if (err && err.code === 'declined') return;
+    copyText(body, 'Backup');
+  }
+}
+
+/* ---------------- views ---------------- */
+function show(view){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.view===view));
+  ['explore','board','auto','data'].forEach(v=>document.getElementById('v-'+v).classList.toggle('on', v===view));
+  if (view === 'board') renderBoard();
+  if (view === 'data') { renderStats(); renderStorageState(); }
+  if (view === 'auto') { buildBookmarklet(); renderATSTable(); }
+}
+function renderAll(){
+  compute(); renderRail(); renderPresets(); renderTable(); renderPulse();
+  if (document.getElementById('v-board').classList.contains('on')) renderBoard();
+}
+
+/* ---------------- events ---------------- */
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => show(b.dataset.view));
+document.getElementById('rail').addEventListener('click', ev=>{
+  const chip = ev.target.closest('.chip');
+  if (chip){
+    const set = F[chip.dataset.f], v = chip.dataset.v;
+    set.has(v) ? set.delete(v) : set.add(v);
+    renderAll(); return;
+  }
+  if (ev.target.id === 'btn-clear'){
+    ['tier','region','track','sen','ats','stage','link','src'].forEach(k=>F[k].clear());
+    F.comp = F.sponsor = F.untracked = false; F.preset = null;
+    F.q = ''; document.getElementById('q').value = '';
+    renderAll();
+  }
+});
+document.getElementById('rail').addEventListener('change', ev=>{
+  if (ev.target.dataset.t){ F[ev.target.dataset.t] = ev.target.checked; renderAll(); }
+});
+let qT;
+document.getElementById('q').addEventListener('input', ev=>{
+  clearTimeout(qT);
+  qT = setTimeout(()=>{ F.q = ev.target.value.trim(); compute(); renderTable(); }, 110);
+});
+document.getElementById('thead').addEventListener('click', ev=>{
+  const th = ev.target.closest('th'); if (!th) return;
+  const k = th.dataset.k;
+  SORT = {k, dir: SORT.k === k ? -SORT.dir : 1};
+  compute(); renderTable();
+});
+document.getElementById('tbody').addEventListener('click', ev=>{
+  const tr = ev.target.closest('tr'); if (tr) openDrawer(+tr.dataset.i);
+});
+document.getElementById('btn-shortlist-all').onclick = ()=>{
+  const take = VIEW_ROWS.slice(0,25).filter(r=>!entry(r.i));
+  take.forEach(r=>{ STATE.entries[r.i] = {st:'saved', up:today()}; });
+  save(); renderAll(); toast('Shortlisted ' + take.length + ' roles');
+};
+document.getElementById('btn-open-batch').onclick = ()=>{
+  const take = ROLES.filter(r=>(entry(r.i)||{}).st === 'saved').slice(0,5);
+  if (!take.length){ toast('Nothing shortlisted yet'); return; }
+  take.forEach(r=>window.open(r.u, '_blank', 'noopener'));
+  toast('Opened ' + take.length + ' tabs — allow pop-ups if they were blocked');
+};
+document.getElementById('btn-save-file').onclick = ()=>offerFile('requisition-desk-backup.json', trackerJSON());
+document.getElementById('nostore-save').onclick = ()=>offerFile('requisition-desk-backup.json', trackerJSON());
+document.getElementById('btn-export').onclick = ()=>offerFile('requisition-desk-backup.json', trackerJSON());
+document.getElementById('btn-csv').onclick = ()=>offerFile('applications.csv', trackerCSV());
+document.getElementById('btn-copy-json').onclick = ()=>copyText(trackerJSON(), 'Tracker JSON');
+document.getElementById('btn-import').onclick = ()=>document.getElementById('file-in').click();
+document.getElementById('file-in').addEventListener('change', ev=>{
+  const f = ev.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => applyImport(rd.result);
+  rd.readAsText(f);
+  ev.target.value = '';
+});
+document.getElementById('btn-reset').onclick = ()=>{
+  if (!confirm('Clear every status, date and note? Your profile is kept.')) return;
+  STATE.entries = {}; save(); renderAll(); toast('Tracker cleared');
+};
+document.getElementById('btn-copy-bmk').onclick = ()=>copyText(buildBookmarklet(), 'Bookmarklet code');
+document.getElementById('bmk').addEventListener('click', ev=>{
+  ev.preventDefault();
+  toast('Drag this to your bookmarks bar — clicking it here does nothing');
+});
+document.getElementById('cover-tpl').addEventListener('input', ev=>{
+  STATE.profile.cover = ev.target.value; save(); renderCoverPreview(); buildBookmarklet();
+});
+document.addEventListener('keydown', ev=>{
+  const tag = (ev.target.tagName||'').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select'){
+    if (ev.key === 'Escape') ev.target.blur();
+    return;
+  }
+  if (ev.key === '/'){ ev.preventDefault(); show('explore'); document.getElementById('q').focus(); return; }
+  if (ev.key === 'Escape'){ closeDrawer(); return; }
+  if (SELECTED == null) return;
+  const pos = VIEW_ROWS.findIndex(r=>r.i===SELECTED);
+  if (ev.key === 'j' && pos < VIEW_ROWS.length-1) openDrawer(VIEW_ROWS[pos+1].i);
+  if (ev.key === 'k' && pos > 0) openDrawer(VIEW_ROWS[pos-1].i);
+  if (ev.key === 's') setStage(SELECTED, 'saved');
+  if (ev.key === 'a') setStage(SELECTED, 'applied');
+  if (ev.key === 'o') window.open(ROLES.find(r=>r.i===SELECTED).u, '_blank', 'noopener');
+});
+
+/* ---------------- boot ---------------- */
+document.getElementById('brandsub').textContent = ROLES.length + ' verified roles · ' + FIRMS.length + ' firms';
+document.getElementById('ats-cover').textContent = ROLES.filter(r=>ATS_NATIVE.includes(r.a)).length;
+document.getElementById('ats-total').textContent = ROLES.length;
+document.getElementById('set-summary').textContent =
+  ROLES.length + ' roles across ' + FIRMS.length + " firms, each read off the hiring firm's own board or ATS. "
+  + 'Counts below are of the whole set, not the current filter.';
+renderProfile();
+buildBookmarklet();
+renderStorageState();
+renderAll();
+</script>
+</body>
+</html>
