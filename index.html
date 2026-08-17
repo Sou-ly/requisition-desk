@@ -235,18 +235,23 @@ table.mini td:last-child{text-align:right;font-family:var(--mono);font-variant-n
 .rrow input{flex:1}
 input.txt{background:var(--sunk)}
 #print-resume{display:none}
+.rsheet{color:#000;font:10.5pt/1.35 Georgia,"Times New Roman",serif}
+.rsheet h1{font-size:19pt;margin:0;letter-spacing:0;font-family:inherit}
+.rsheet .tag{font-size:10pt;font-weight:bold;margin-top:2pt}
+.rsheet .pc{font-size:9.5pt;margin:2pt 0 8pt}
+.rsheet h2{font-size:10pt;text-transform:uppercase;letter-spacing:.08em;border-bottom:1pt solid #000;margin:9pt 0 4pt;padding-bottom:1pt}
+.rsheet .ih{font-weight:bold;font-size:10.5pt;margin-top:4pt}
+.rsheet .is{font-style:italic;font-size:9.5pt}
+.rsheet ul{margin:1pt 0 4pt 14pt;padding:0}
+.rsheet li{margin-bottom:1pt}
+.resume-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1100px){.resume-cols{grid-template-columns:1fr}}
+.rv-prev-panel{position:sticky;top:calc(var(--top-h) + 12px)}
+.paper-view{background:#fff;border:1px solid var(--rule-2);border-radius:4px;padding:28px 32px;max-height:calc(100vh - 230px);overflow-y:auto;box-shadow:var(--shadow)}
 @media print{
   .shell,.drawer,.toast,#nostore{display:none!important}
   body{background:#fff;padding:0}
-  #print-resume{display:block;color:#000;font:10.5pt/1.35 Georgia,"Times New Roman",serif}
-  #print-resume h1{font-size:19pt;margin:0;letter-spacing:0}
-  #print-resume .tag{font-size:10pt;font-weight:bold;margin-top:2pt}
-  #print-resume .pc{font-size:9.5pt;margin:2pt 0 8pt}
-  #print-resume h2{font-size:10pt;text-transform:uppercase;letter-spacing:.08em;border-bottom:1pt solid #000;margin:9pt 0 4pt;padding-bottom:1pt}
-  #print-resume .ih{font-weight:bold;font-size:10.5pt;margin-top:4pt}
-  #print-resume .is{font-style:italic;font-size:9.5pt}
-  #print-resume ul{margin:1pt 0 4pt 14pt;padding:0}
-  #print-resume li{margin-bottom:1pt}
+  #print-resume{display:block}
 }
 </style>
 </head>
@@ -893,6 +898,7 @@ function openDrawer(i){
       <button class="btn" id="dr-apply">Open &amp; mark applied</button>
       <button class="btn" id="dr-letter">Copy letter</button>
       <button class="btn" id="dr-url">Copy link</button>
+      ${RESUMES.versions.length?`<label style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Resume<span id="dr-rv-slot"></span></label>`:''}
     </div>
     <div class="dr-body">
       ${(r.ns===true||r.up===true) ? `<div class="warnbox"><b>Eligibility gate.</b> ${r.ns===true?'This posting states it does not sponsor visas. ':''}${r.up===true?'Restricted to US persons (citizen / permanent resident).':''}</div>`:''}
@@ -908,7 +914,6 @@ function openDrawer(i){
             : '<span style="color:var(--crit)">'+esc(r.uc)+'</span>'}${r.rdm?' · redirected to a different job':''}</dd>
           <dt>Came from</dt><dd>${esc(SRC_LABEL[r.src]||r.src)}</dd>
           ${e.dt?`<dt>Applied</dt><dd class="mono">${esc(e.dt)}</dd>`:''}
-          ${(e.st && RESUMES.versions.length)?`<dt>Resume</dt><dd id="dr-rv-slot"></dd>`:''}
         </dl>
       </div>
       ${r.e?`<div class="sec"><span class="eyebrow">Eligibility</span><p>${esc(r.e)}</p></div>`:''}
@@ -925,11 +930,12 @@ function openDrawer(i){
   document.getElementById('dr-note').oninput = ev => setNote(i, ev.target.value);
   const rvSlot = document.getElementById('dr-rv-slot');
   if (rvSlot){
-    rvSlot.innerHTML = resumeSelect(e.rv);
+    rvSlot.innerHTML = resumeSelect(e.rv || RESUMES.activeId);
     document.getElementById('dr-rv').onchange = ev => {
-      const en = STATE.entries[i]; if (!en) return;
-      if (ev.target.value) en.rv = ev.target.value; else delete en.rv;
-      save();
+      const val = ev.target.value;
+      if (val && RESUMES.activeId !== val){ RESUMES.activeId = val; scheduleResumesPush(); }
+      const en = STATE.entries[i];
+      if (en){ if (val) en.rv = val; else delete en.rv; save(); }
     };
   }
   document.getElementById('dr-url').onclick = () => copyText(r.u, 'Link');
@@ -1621,12 +1627,12 @@ function renderResume(){
   const statsRows = RESUMES.versions.map(x => {
     const s = resumeStats(x.id);
     const rate = s.sent ? Math.round(s.replied / s.sent * 100) + '%' : '—';
-    return `<tr><td>${esc(x.name)}${x.id===RESUMES.activeId?' · <span style="color:var(--accent-ink)">active</span>':''}</td>
+    return `<tr><td>${esc(x.name)}${x.id===RESUMES.activeId?' · <span style="color:var(--accent-ink)">default</span>':''}</td>
       <td>${s.sent}</td><td>${s.replied}</td><td>${s.offers}</td><td>${rate}</td></tr>`;
   }).join('');
   wrap.innerHTML = `
     <h1>Resume</h1>
-    <p class="lede">Versions live in the private repo next to the tracker. The active version is stamped on every role you mark applied, so reply rates per version accumulate on their own. Correct a single role from its drawer.</p>
+    <p class="lede">Versions live in the private repo next to the tracker. Each role's drawer has a resume selector beside the apply buttons: whatever it shows when you mark applied is what gets recorded, and it remembers your last pick as the default.</p>
     <div class="panel">
       <h3>Versions</h3>
       <div class="dragrow" style="margin-top:6px">
@@ -1643,7 +1649,11 @@ function renderResume(){
         <tr style="color:var(--faint)"><td>version</td><td>sent</td><td>replies</td><td>offers</td><td>reply rate</td></tr>
         ${statsRows}</table>`:''}
     </div>
-    ${v ? editorHTML(v) : '<div class="panel"><h3>No versions yet</h3><p class="sub">Press New, then fill your resume in section by section. Duplicate it before each experiment so the stats stay separable.</p></div>'}`;
+    ${v ? `<div class="resume-cols">${editorHTML(v)}
+      <div class="panel rv-prev-panel"><h3>Preview</h3><p class="sub">Updates as you type; Print / PDF produces exactly this.</p>
+        <div class="rsheet paper-view" id="rv-preview">${buildResumeHTML(v)}</div>
+      </div></div>`
+      : '<div class="panel"><h3>No versions yet</h3><p class="sub">Press New, then fill your resume in section by section. Duplicate it before each experiment so the stats stay separable.</p></div>'}`;
 
   const sel = document.getElementById('rv-sel');
   if (sel) sel.onchange = ev => { RESUMES.activeId = ev.target.value; scheduleResumesPush(); renderResume(); };
@@ -1692,6 +1702,8 @@ function renderResume(){
     }
     cur.updated = today();
     scheduleResumesPush();
+    const preview = document.getElementById('rv-preview');
+    if (preview) preview.innerHTML = buildResumeHTML(cur);
   };
   wrap.onclick = ev => {
     const b = ev.target.closest('[data-act]');
@@ -1713,11 +1725,8 @@ function renderResume(){
     scheduleResumesPush(); renderResume();
   };
 }
-function printResume(){
-  const v = rvActive(); if (!v) return;
-  let el = document.getElementById('print-resume');
-  if (!el){ el = document.createElement('div'); el.id = 'print-resume'; document.body.appendChild(el); }
-  el.innerHTML = `<h1>${esc(v.header.name)}</h1>`
+function buildResumeHTML(v){
+  return `<h1>${esc(v.header.name)}</h1>`
     + (v.header.tagline ? `<div class="tag">${esc(v.header.tagline)}</div>` : '')
     + `<div class="pc">${esc(v.header.contact)}</div>`
     + v.sections.filter(s => s.items.length).map(s => `<h2>${esc(s.title)}</h2>`
@@ -1727,6 +1736,12 @@ function printResume(){
         + (it.bullets.some(x => x.trim())
             ? `<ul>${it.bullets.filter(x => x.trim()).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '')
       ).join('')).join('');
+}
+function printResume(){
+  const v = rvActive(); if (!v) return;
+  let el = document.getElementById('print-resume');
+  if (!el){ el = document.createElement('div'); el.id = 'print-resume'; el.className = 'rsheet'; document.body.appendChild(el); }
+  el.innerHTML = buildResumeHTML(v);
   window.print();
 }
 
