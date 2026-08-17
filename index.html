@@ -112,6 +112,10 @@ thead th.sorted{color:var(--accent-ink)}
 tbody tr{border-bottom:1px solid var(--rule);cursor:pointer}
 tbody tr:hover{background:var(--surface)}
 tbody tr.sel{background:var(--accent-soft)}
+tr.grp td{background:var(--surface-2);font-size:12.5px}
+tr.grp:hover td{background:var(--sunk)}
+tr.grp .caret{display:inline-block;width:11px;color:var(--faint)}
+tr.ingrp td:first-child{padding-left:22px}
 td{padding:8px 10px;vertical-align:top;font-size:13px}
 td.t-firm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 td.t-title{color:var(--ink-2)}
@@ -760,6 +764,7 @@ function passes(r){
   return true;
 }
 let VIEW_ROWS = [], WINDOW = 250;
+const EXPANDED = new Set();
 const PAGE = 250;
 function compute(){
   WINDOW = PAGE;
@@ -845,14 +850,47 @@ function renderTable(){
     const key = c.sk || c.k;
     return `<th data-k="${key}" class="${SORT.k===key?'sorted':''}">${c.label}${SORT.k===key?(SORT.dir>0?' ↑':' ↓'):''}</th>`;
   }).join('');
-  const shown = VIEW_ROWS.slice(0, WINDOW);
-  const rows = shown.map(r=>{
+  const groups = [];
+  const byFirm = new Map();
+  for (const r of VIEW_ROWS){
+    let g = byFirm.get(r.firm);
+    if (!g){ g = {firm:r.firm, rows:[]}; byFirm.set(r.firm, g); groups.push(g); }
+    g.rows.push(r);
+  }
+  const display = [];
+  for (const g of groups){
+    if (g.rows.length === 1){ display.push(g.rows[0]); continue; }
+    display.push({group:g});
+    if (EXPANDED.has(g.firm)) display.push(...g.rows);
+  }
+  const shown = display.slice(0, WINDOW);
+  const rows = shown.map(row=>{
+    if (row.group){
+      const g = row.group;
+      const tier = g.rows.map(r=>r.t).sort()[0];
+      const tracks = [...new Set(g.rows.map(r=>r.tr))];
+      const locs = [...new Set(g.rows.map(r=>r.l))];
+      const tracked = g.rows.filter(r=>entry(r.i)).length;
+      const open = EXPANDED.has(g.firm);
+      return `<tr class="grp" data-firm="${esc(g.firm)}">
+        <td><span class="tier ${tier}">${tier}</span></td>
+        <td class="t-firm" title="${esc(g.firm)}"><span class="caret">${open?'▾':'▸'}</span> ${esc(g.rows[0].firmShort)}</td>
+        <td class="t-title" style="color:var(--muted)">${g.rows.length} roles</td>
+        <td class="t-wrap">${esc(tracks.slice(0,2).join(', '))}${tracks.length>2?' +'+(tracks.length-2):''}</td>
+        <td class="t-loc" title="${esc(locs.join(', '))}">${locs.length===1?esc(locs[0]):locs.length+' locations'}</td>
+        <td class="t-wrap"></td>
+        <td class="t-comp"></td>
+        <td>${tracked?`<span class="pill st-saved">${tracked} tracked</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      </tr>`;
+    }
+    const r = row;
     const e = entry(r.i);
     const st = e ? e.st : 'none';
+    const grouped = byFirm.get(r.firm).rows.length > 1;
     const flag = (r.ns===true?'<span class="flag">NO-SPON</span> ':'') + (r.up===true?'<span class="flag">US-PERSON</span>':'');
-    return `<tr data-i="${r.i}" class="${SELECTED===r.i?'sel':''}">
+    return `<tr data-i="${r.i}" class="${SELECTED===r.i?'sel':''}${grouped?' ingrp':''}">
       <td><span class="tier ${r.t}">${r.t}</span></td>
-      <td class="t-firm" title="${esc(r.firm)}">${esc(r.firmShort)}</td>
+      <td class="t-firm" title="${esc(r.firm)}">${grouped?'':esc(r.firmShort)}</td>
       <td class="t-title">${esc(r.ti)} ${flag}</td>
       <td class="t-wrap">${esc(r.tr)}</td>
       <td class="t-loc" title="${esc(r.l)}">${esc(r.l)}</td>
@@ -864,7 +902,7 @@ function renderTable(){
   document.getElementById('tbody').innerHTML = rows;
   document.getElementById('empty').hidden = VIEW_ROWS.length > 0;
   const tracked = VIEW_ROWS.filter(r=>entry(r.i)).length;
-  const more = VIEW_ROWS.length - shown.length;
+  const more = display.length - shown.length;
   document.getElementById('more').innerHTML = more
     ? `<button class="btn" id="btn-more">Show ${Math.min(more, PAGE)} more · ${more.toLocaleString('en-US')} left</button>` : '';
   if (more) document.getElementById('btn-more').onclick = () => { WINDOW += PAGE; renderTable(); };
@@ -943,9 +981,10 @@ function openDrawer(i){
   document.getElementById('dr-apply').onclick = () => {
     window.open(r.u, '_blank', 'noopener');
     setStage(i, 'applied');
+    openDrawer(i);
     toast('Marked applied — ' + r.firm);
   };
-  document.querySelectorAll('.stagerow button').forEach(b => b.onclick = () => setStage(i, b.dataset.stage));
+  document.querySelectorAll('.stagerow button').forEach(b => b.onclick = () => { setStage(i, b.dataset.stage); openDrawer(i); });
   renderTable();
 }
 function closeDrawer(){
@@ -1513,7 +1552,13 @@ document.getElementById('thead').addEventListener('click', ev=>{
   compute(); renderTable();
 });
 document.getElementById('tbody').addEventListener('click', ev=>{
-  const tr = ev.target.closest('tr'); if (tr) openDrawer(+tr.dataset.i);
+  const tr = ev.target.closest('tr'); if (!tr) return;
+  if (tr.classList.contains('grp')){
+    const firm = tr.dataset.firm;
+    EXPANDED.has(firm) ? EXPANDED.delete(firm) : EXPANDED.add(firm);
+    renderTable(); return;
+  }
+  openDrawer(+tr.dataset.i);
 });
 document.getElementById('btn-shortlist-all').onclick = ()=>{
   const take = VIEW_ROWS.slice(0,25).filter(r=>!entry(r.i));
