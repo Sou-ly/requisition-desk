@@ -273,9 +273,10 @@ input.txt{background:var(--sunk)}
 .rsheet li{position:relative;margin:0}
 .rsheet li::before{content:"\2022";position:absolute;left:-9pt}
 .rsheet a{color:#0563C1;text-decoration:underline}
-.resume-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+#v-resume .pagewrap{max-width:none;padding-left:18px;padding-right:18px}
+.resume-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
 @media (max-width:1100px){.resume-cols{grid-template-columns:1fr}}
-.rv-prev-panel{position:sticky;top:calc(var(--top-h) + 12px)}
+.rv-side{position:sticky;top:calc(var(--top-h) + 10px);display:flex;justify-content:center}
 #rv-pagewrap{position:relative;overflow:hidden}
 .rs-page{width:794px;min-height:1123px;padding:34px 47px;background:#fff;border:1px solid var(--rule-2);border-radius:2px;box-shadow:var(--shadow);transform-origin:top left;position:relative}
 .rs-break{position:absolute;left:0;right:0;border-top:2px dashed var(--crit);opacity:.75;pointer-events:none}
@@ -1726,9 +1727,7 @@ function renderResume(){
         ${statsRows}</table>`:''}
     </div>
     ${v ? `<div class="resume-cols">${editorHTML(v)}
-      <div class="panel rv-prev-panel"><h3>Preview</h3><p class="sub">A real A4 page, scaled to fit. A red dashed line marks where page 2 would start.</p>
-        <div id="rv-pagewrap"><div class="rsheet rs-page" id="rv-preview">${buildResumeHTML(v)}</div></div>
-      </div></div>`
+      <div class="rv-side"><div id="rv-pagewrap"><div class="rsheet rs-page" id="rv-preview">${buildResumeHTML(v)}</div></div></div></div>`
       : '<div class="panel"><h3>No versions yet</h3><p class="sub">Press New, then fill your resume in section by section. Duplicate it before each experiment so the stats stay separable.</p></div>'}`;
 
   const sel = document.getElementById('rv-sel');
@@ -1874,8 +1873,12 @@ function fitPreview(){
     mark.innerHTML = '<span>page ' + (Math.round(y / A4_H) + 1) + '</span>';
     page.appendChild(mark);
   }
-  const scale = Math.min(1, wrap.clientWidth / A4_W);
+  const side = wrap.parentElement;
+  const topH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-h')) || 53;
+  const availH = window.innerHeight - topH - 24;
+  const scale = Math.min(1, side.clientWidth / A4_W, availH / A4_H);
   page.style.transform = 'scale(' + scale + ')';
+  wrap.style.width = Math.ceil(A4_W * scale) + 'px';
   wrap.style.height = Math.ceil(contentH * scale) + 'px';
 }
 addEventListener('resize', fitPreview);
