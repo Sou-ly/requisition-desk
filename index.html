@@ -761,6 +761,11 @@ function renderPresets(){
     F.preset = b.dataset.preset || null; renderAll();
   });
 }
+/* The next page loads itself as the bottom approaches; the button stays as a fallback. */
+const moreWatcher = new IntersectionObserver(hits => {
+  if (hits[0].isIntersecting && VIEW_ROWS.length > WINDOW) { WINDOW += PAGE; renderTable(); }
+}, {rootMargin: '900px'});
+
 function renderTable(){
   document.getElementById('thead').innerHTML = COLS.map(c=>{
     const key = c.sk || c.k;
@@ -789,6 +794,8 @@ function renderTable(){
   document.getElementById('more').innerHTML = more
     ? `<button class="btn" id="btn-more">Show ${Math.min(more, PAGE)} more · ${more.toLocaleString('en-US')} left</button>` : '';
   if (more) document.getElementById('btn-more').onclick = () => { WINDOW += PAGE; renderTable(); };
+  moreWatcher.disconnect();
+  if (more) moreWatcher.observe(document.getElementById('more'));
   document.getElementById('count').innerHTML =
     `<b>${VIEW_ROWS.length.toLocaleString('en-US')}</b> of ${ROLES.length.toLocaleString('en-US')} roles · <b>${tracked}</b> tracked`
     + (more ? ` · showing ${shown.length.toLocaleString('en-US')}` : '');
