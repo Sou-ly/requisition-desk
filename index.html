@@ -225,6 +225,28 @@ table.mini td:last-child{text-align:right;font-family:var(--mono);font-variant-n
   .tablebar{position:static}
   .board{grid-template-columns:repeat(6,minmax(170px,1fr))}
 }
+
+/* ---------- resume ---------- */
+.rsec{border:1px solid var(--rule);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--surface)}
+.rsec-head{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.rsec-head input{font-weight:600}
+.ritem{border:1px solid var(--rule);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--paper)}
+.rrow{display:flex;gap:6px;margin-bottom:6px}
+.rrow input{flex:1}
+input.txt{background:var(--sunk)}
+#print-resume{display:none}
+@media print{
+  .shell,.drawer,.toast,#nostore{display:none!important}
+  body{background:#fff;padding:0}
+  #print-resume{display:block;color:#000;font:10.5pt/1.35 Georgia,"Times New Roman",serif}
+  #print-resume h1{font-size:19pt;margin:0;letter-spacing:0}
+  #print-resume .pc{font-size:9.5pt;margin:2pt 0 8pt}
+  #print-resume h2{font-size:10pt;text-transform:uppercase;letter-spacing:.08em;border-bottom:1pt solid #000;margin:9pt 0 4pt;padding-bottom:1pt}
+  #print-resume .ih{font-weight:bold;font-size:10.5pt;margin-top:4pt}
+  #print-resume .is{font-style:italic;font-size:9.5pt}
+  #print-resume ul{margin:1pt 0 4pt 14pt;padding:0}
+  #print-resume li{margin-bottom:1pt}
+}
 </style>
 </head>
 <body>
@@ -237,6 +259,7 @@ table.mini td:last-child{text-align:right;font-family:var(--mono);font-variant-n
       <button role="tab" data-view="explore" aria-selected="true">Roles</button>
       <button role="tab" data-view="board" aria-selected="false">Pipeline</button>
       <button role="tab" data-view="auto" aria-selected="false">Autofill</button>
+      <button role="tab" data-view="resume" aria-selected="false">Resume</button>
       <button role="tab" data-view="data" aria-selected="false">Data</button>
     </nav>
     <div class="top-right">
@@ -326,6 +349,9 @@ table.mini td:last-child{text-align:right;font-family:var(--mono);font-variant-n
     </div>
   </div>
 </main>
+
+<!-- ============ RESUME ============ -->
+<main id="v-resume"><div class="pagewrap" id="resume-wrap"></div></main>
 
 <!-- ============ DATA ============ -->
 <main id="v-data">
@@ -440,6 +466,45 @@ const barWatcher = new ResizeObserver(measureBars);
 barWatcher.observe(document.querySelector('header.top'));
 barWatcher.observe(document.querySelector('.tablebar'));
 
+/* resumes.json shares the tracker's sync pattern: fetch with sha, debounced PUT. */
+const RES = {sha:null, timer:null, pushing:false, dirty:false};
+async function fetchResumes(){
+  const r = await fetch(api('resumes.json'), {headers: ghHeaders({'Accept':'application/vnd.github+json'})});
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('resumes.json: HTTP ' + r.status);
+  const j = await r.json();
+  RES.sha = j.sha;
+  return JSON.parse(b64decode(j.content));
+}
+function scheduleResumesPush(){
+  RES.dirty = true; renderSync();
+  clearTimeout(RES.timer);
+  RES.timer = setTimeout(pushResumes, 1500);
+}
+async function pushResumes(){
+  if (RES.pushing) { scheduleResumesPush(); return; }
+  RES.pushing = true; RES.dirty = false; renderSync();
+  try {
+    const put = () => fetch(api('resumes.json'), {
+      method:'PUT',
+      headers: ghHeaders({'Accept':'application/vnd.github+json'}),
+      body: JSON.stringify({message:'resume update',
+                            content: b64encode(JSON.stringify(RESUMES, null, 1)),
+                            ...(RES.sha ? {sha: RES.sha} : {})})
+    });
+    let r = await put();
+    if (r.status === 409 || r.status === 422) { await fetchResumes().catch(() => null); r = await put(); }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    RES.sha = (await r.json()).content.sha;
+  } catch(e) {
+    RES.dirty = true;
+    toast('Resume sync failed - retrying');
+    clearTimeout(RES.timer);
+    RES.timer = setTimeout(pushResumes, 15000);
+  }
+  RES.pushing = false; renderSync();
+}
+
 let DATA = null, REMOTE_TRACKER = null;
 {
   let msg = '';
@@ -450,6 +515,7 @@ let DATA = null, REMOTE_TRACKER = null;
   }
 }
 REMOTE_TRACKER = await fetchTracker().catch(() => null);
+const REMOTE_RESUMES = await fetchResumes().catch(() => null);
 
 let pushTimer = null, pushing = false, dirty = false;
 function schedulePush(){
@@ -514,12 +580,13 @@ function renderSync(){
     el.onclick = async () => { await setupScreen(''); location.reload(); };
     document.querySelector('.top-right').prepend(el);
   }
-  el.textContent = pushing ? 'syncing' : dirty ? 'unsynced' : 'synced';
-  el.style.color = pushing ? 'var(--amber)' : dirty ? 'var(--crit)' : 'var(--good)';
+  const busy = pushing || RES.pushing, undone = dirty || RES.dirty;
+  el.textContent = busy ? 'syncing' : undone ? 'unsynced' : 'synced';
+  el.style.color = busy ? 'var(--amber)' : undone ? 'var(--crit)' : 'var(--good)';
 }
 
 addEventListener('beforeunload', ev => {
-  if (dirty || pushing) { ev.preventDefault(); ev.returnValue = ''; }
+  if (dirty || pushing || RES.dirty || RES.pushing) { ev.preventDefault(); ev.returnValue = ''; }
 });
 
 
@@ -583,6 +650,7 @@ function setStage(i, stage){
     e.st = stage;
     e.up = today();
     if (stage === 'applied' && !e.dt) e.dt = today();
+		if (stage === 'applied' && !e.rv && RESUMES.activeId) e.rv = RESUMES.activeId;
     STATE.entries[i] = e;
   }
   save(); renderAll();
@@ -839,6 +907,7 @@ function openDrawer(i){
             : '<span style="color:var(--crit)">'+esc(r.uc)+'</span>'}${r.rdm?' · redirected to a different job':''}</dd>
           <dt>Came from</dt><dd>${esc(SRC_LABEL[r.src]||r.src)}</dd>
           ${e.dt?`<dt>Applied</dt><dd class="mono">${esc(e.dt)}</dd>`:''}
+          ${(e.st && RESUMES.versions.length)?`<dt>Resume</dt><dd id="dr-rv-slot"></dd>`:''}
         </dl>
       </div>
       ${r.e?`<div class="sec"><span class="eyebrow">Eligibility</span><p>${esc(r.e)}</p></div>`:''}
@@ -853,6 +922,15 @@ function openDrawer(i){
   document.getElementById('drawer').classList.add('on');
   document.getElementById('dr-close').onclick = closeDrawer;
   document.getElementById('dr-note').oninput = ev => setNote(i, ev.target.value);
+  const rvSlot = document.getElementById('dr-rv-slot');
+  if (rvSlot){
+    rvSlot.innerHTML = resumeSelect(e.rv);
+    document.getElementById('dr-rv').onchange = ev => {
+      const en = STATE.entries[i]; if (!en) return;
+      if (ev.target.value) en.rv = ev.target.value; else delete en.rv;
+      save();
+    };
+  }
   document.getElementById('dr-url').onclick = () => copyText(r.u, 'Link');
   document.getElementById('dr-letter').onclick = () => copyText(renderCover(r), 'Letter');
   document.getElementById('dr-apply').onclick = () => {
@@ -1386,8 +1464,9 @@ async function offerFile(name, body){
 /* ---------------- views ---------------- */
 function show(view){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.view===view));
-  ['explore','board','auto','data'].forEach(v=>document.getElementById('v-'+v).classList.toggle('on', v===view));
+  ['explore','board','auto','resume','data'].forEach(v=>document.getElementById('v-'+v).classList.toggle('on', v===view));
   if (view === 'board') renderBoard();
+  if (view === 'resume') renderResume();
   if (view === 'data') { renderStats(); renderStorageState(); }
   if (view === 'auto') { buildBookmarklet(); renderATSTable(); }
 }
@@ -1481,6 +1560,170 @@ document.addEventListener('keydown', ev=>{
   if (ev.key === 'a') setStage(SELECTED, 'applied');
   if (ev.key === 'o') window.open(ROLES.find(r=>r.i===SELECTED).u, '_blank', 'noopener');
 });
+
+
+/* ---------------- resume ---------------- */
+let RESUMES = REMOTE_RESUMES || {versions: [], activeId: null};
+const rvActive = () => RESUMES.versions.find(v => v.id === RESUMES.activeId) || null;
+function rvNew(name){
+  return {id: Math.random().toString(16).slice(2, 8), name, created: today(),
+          header: {name: STATE.profile.firstName ? (STATE.profile.firstName + ' ' + STATE.profile.lastName).trim() : '', contact: ''},
+          sections: [{title:'Experience', items:[]}, {title:'Education', items:[]}, {title:'Skills', items:[]}]};
+}
+function resumeSelect(cur){
+  return '<select class="sel" id="dr-rv" style="width:auto"><option value="">not recorded</option>'
+    + RESUMES.versions.map(v => `<option value="${v.id}" ${v.id===cur?'selected':''}>${esc(v.name)}</option>`).join('')
+    + '</select>';
+}
+function resumeStats(id){
+  const es = Object.values(STATE.entries).filter(e => e.rv === id);
+  const sent = es.filter(e => ['applied','screen','interview','offer','closed'].includes(e.st)).length;
+  const replied = es.filter(e => ['screen','interview','offer'].includes(e.st)).length;
+  const offers = es.filter(e => e.st === 'offer').length;
+  return {sent, replied, offers};
+}
+function editorHTML(v){
+  return `<div class="panel"><h3>${esc(v.name)}</h3>
+    <p class="sub">Saves as you type. Arrows move sections and entries; bullets are one per line.</p>
+    <div class="grid2" style="margin-bottom:12px">
+      <label class="fld"><span>Full name</span><input class="txt" data-f="hname" value="${esc(v.header.name)}"></label>
+      <label class="fld"><span>Contact line</span><input class="txt" data-f="hcontact" value="${esc(v.header.contact)}" placeholder="email · phone · city · links"></label>
+    </div>
+    ${v.sections.map((s, si) => `
+      <div class="rsec">
+        <div class="rsec-head">
+          <input class="txt" data-f="title" data-s="${si}" value="${esc(s.title)}" style="flex:1">
+          <button class="btn sm" data-act="upsec" data-s="${si}" title="Move section up">↑</button>
+          <button class="btn sm" data-act="downsec" data-s="${si}" title="Move section down">↓</button>
+          <button class="btn sm" data-act="delsec" data-s="${si}" title="Delete section">✕</button>
+        </div>
+        ${s.items.map((it, ji) => `
+          <div class="ritem">
+            <div class="rrow">
+              <input class="txt" data-f="head" data-s="${si}" data-j="${ji}" value="${esc(it.head)}" placeholder="Title — Organization">
+              <button class="btn sm" data-act="upitem" data-s="${si}" data-j="${ji}">↑</button>
+              <button class="btn sm" data-act="downitem" data-s="${si}" data-j="${ji}">↓</button>
+              <button class="btn sm" data-act="delitem" data-s="${si}" data-j="${ji}">✕</button>
+            </div>
+            <div class="rrow"><input class="txt" data-f="sub" data-s="${si}" data-j="${ji}" value="${esc(it.sub)}" placeholder="Place · dates"></div>
+            <textarea class="note" data-f="bullets" data-s="${si}" data-j="${ji}" placeholder="One bullet per line">${esc(it.bullets.join('\n'))}</textarea>
+          </div>`).join('')}
+        <button class="btn sm" data-act="additem" data-s="${si}">+ Entry</button>
+      </div>`).join('')}
+    <button class="btn" data-act="addsec">+ Section</button>
+  </div>`;
+}
+function renderResume(){
+  const wrap = document.getElementById('resume-wrap');
+  const v = rvActive();
+  const statsRows = RESUMES.versions.map(x => {
+    const s = resumeStats(x.id);
+    const rate = s.sent ? Math.round(s.replied / s.sent * 100) + '%' : '—';
+    return `<tr><td>${esc(x.name)}${x.id===RESUMES.activeId?' · <span style="color:var(--accent-ink)">active</span>':''}</td>
+      <td>${s.sent}</td><td>${s.replied}</td><td>${s.offers}</td><td>${rate}</td></tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <h1>Resume</h1>
+    <p class="lede">Versions live in the private repo next to the tracker. The active version is stamped on every role you mark applied, so reply rates per version accumulate on their own. Correct a single role from its drawer.</p>
+    <div class="panel">
+      <h3>Versions</h3>
+      <div class="dragrow" style="margin-top:6px">
+        <select class="sel" id="rv-sel" style="width:auto;min-width:170px" ${RESUMES.versions.length?'':'hidden'}>
+          ${RESUMES.versions.map(x=>`<option value="${x.id}" ${x.id===RESUMES.activeId?'selected':''}>${esc(x.name)}</option>`).join('')}
+        </select>
+        <button class="btn" id="rv-new">New</button>
+        ${v?`<button class="btn" id="rv-dup">Duplicate</button>
+        <button class="btn" id="rv-ren">Rename</button>
+        <button class="btn" id="rv-del">Delete</button>
+        <button class="btn primary" id="rv-print">Print / PDF</button>`:''}
+      </div>
+      ${RESUMES.versions.length?`<table class="mini" style="margin-top:10px">
+        <tr style="color:var(--faint)"><td>version</td><td>sent</td><td>replies</td><td>offers</td><td>reply rate</td></tr>
+        ${statsRows}</table>`:''}
+    </div>
+    ${v ? editorHTML(v) : '<div class="panel"><h3>No versions yet</h3><p class="sub">Press New, then fill your resume in section by section. Duplicate it before each experiment so the stats stay separable.</p></div>'}`;
+
+  const sel = document.getElementById('rv-sel');
+  if (sel) sel.onchange = ev => { RESUMES.activeId = ev.target.value; scheduleResumesPush(); renderResume(); };
+  document.getElementById('rv-new').onclick = () => {
+    const name = prompt('Name for the new version', RESUMES.versions.length ? '' : 'base');
+    if (!name) return;
+    const nv = rvNew(name);
+    RESUMES.versions.push(nv); RESUMES.activeId = nv.id;
+    scheduleResumesPush(); renderResume();
+  };
+  if (!v) return;
+  document.getElementById('rv-dup').onclick = () => {
+    const name = prompt('Name for the copy', v.name + ' 2');
+    if (!name) return;
+    const nv = JSON.parse(JSON.stringify(v));
+    nv.id = Math.random().toString(16).slice(2, 8); nv.name = name; nv.created = today();
+    RESUMES.versions.push(nv); RESUMES.activeId = nv.id;
+    scheduleResumesPush(); renderResume();
+  };
+  document.getElementById('rv-ren').onclick = () => {
+    const name = prompt('New name', v.name);
+    if (!name) return;
+    v.name = name; scheduleResumesPush(); renderResume();
+  };
+  document.getElementById('rv-del').onclick = () => {
+    if (!confirm('Delete version "' + v.name + '"? Applications keep their stats.')) return;
+    RESUMES.versions = RESUMES.versions.filter(x => x.id !== v.id);
+    RESUMES.activeId = RESUMES.versions.length ? RESUMES.versions[0].id : null;
+    scheduleResumesPush(); renderResume();
+  };
+  document.getElementById('rv-print').onclick = printResume;
+
+  wrap.oninput = ev => {
+    const t = ev.target, f = t.dataset.f;
+    if (!f) return;
+    const cur = rvActive(); if (!cur) return;
+    if (f === 'hname') cur.header.name = t.value;
+    else if (f === 'hcontact') cur.header.contact = t.value;
+    else if (f === 'title') cur.sections[+t.dataset.s].title = t.value;
+    else {
+      const it = cur.sections[+t.dataset.s].items[+t.dataset.j];
+      if (f === 'head') it.head = t.value;
+      if (f === 'sub') it.sub = t.value;
+      if (f === 'bullets') it.bullets = t.value.split('\n');
+    }
+    cur.updated = today();
+    scheduleResumesPush();
+  };
+  wrap.onclick = ev => {
+    const b = ev.target.closest('[data-act]');
+    if (!b) return;
+    const cur = rvActive(); if (!cur) return;
+    const act = b.dataset.act, si = +b.dataset.s, ji = +b.dataset.j;
+    const S = cur.sections;
+    const swap = (arr, a, z) => { if (z < 0 || z >= arr.length) return; [arr[a], arr[z]] = [arr[z], arr[a]]; };
+    if (act === 'addsec') S.push({title:'Section', items:[]});
+    else if (act === 'delsec'){ if (!confirm('Delete this section?')) return; S.splice(si, 1); }
+    else if (act === 'upsec') swap(S, si, si - 1);
+    else if (act === 'downsec') swap(S, si, si + 1);
+    else if (act === 'additem') S[si].items.push({head:'', sub:'', bullets:[]});
+    else if (act === 'delitem'){ if (!confirm('Delete this entry?')) return; S[si].items.splice(ji, 1); }
+    else if (act === 'upitem') swap(S[si].items, ji, ji - 1);
+    else if (act === 'downitem') swap(S[si].items, ji, ji + 1);
+    else return;
+    cur.updated = today();
+    scheduleResumesPush(); renderResume();
+  };
+}
+function printResume(){
+  const v = rvActive(); if (!v) return;
+  let el = document.getElementById('print-resume');
+  if (!el){ el = document.createElement('div'); el.id = 'print-resume'; document.body.appendChild(el); }
+  el.innerHTML = `<h1>${esc(v.header.name)}</h1><div class="pc">${esc(v.header.contact)}</div>`
+    + v.sections.filter(s => s.items.length).map(s => `<h2>${esc(s.title)}</h2>`
+      + s.items.map(it =>
+        `<div class="ih">${esc(it.head)}</div>`
+        + (it.sub ? `<div class="is">${esc(it.sub)}</div>` : '')
+        + (it.bullets.some(x => x.trim())
+            ? `<ul>${it.bullets.filter(x => x.trim()).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '')
+      ).join('')).join('');
+  window.print();
+}
 
 /* ---------------- boot ---------------- */
 document.getElementById('brandsub').textContent = ROLES.length + ' verified roles · ' + FIRMS.length + ' firms';
