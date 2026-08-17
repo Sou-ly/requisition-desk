@@ -1821,11 +1821,11 @@ function provGate(){
   if (dot) dot.classList.toggle('live', !!PROV);
   if (PROV){ btn.disabled = true; btn.textContent = 'Provisioning…'; return; }
   btn.textContent = 'Provision';
-  const ok = F.track.size > 0 && F.region.size > 0;
+  const ok = F.track.size > 0 || F.region.size > 0;
   btn.disabled = !ok;
   btn.title = ok
-    ? 'Send an agent to find more roles matching the current track and region filters'
-    : 'Pick at least one Track and one Region filter first, so the agent has a focused search';
+    ? 'Find new roles or recheck existing links within the current filters'
+    : 'Pick a Track or Region filter first, so the agents have a focused scope';
 }
 
 function provPanelOpen(){
@@ -1851,35 +1851,49 @@ function provLine(msg, cls){
 
 function provDialog(){
   const tracks = [...F.track], regions = [...F.region], tiers = [...F.tier];
+  const scope = ROLES.filter(r =>
+    (!tracks.length || tracks.includes(r.tr)) &&
+    (!regions.length || regions.includes(r.rg)) &&
+    (!tiers.length || tiers.includes(r.t))).length;
   const div = document.createElement('div');
   div.style.cssText = 'position:fixed;inset:0;z-index:300;background:color-mix(in srgb, var(--paper) 80%, transparent);display:grid;place-items:center;padding:20px';
-  div.innerHTML = '<div style="max-width:520px;width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:22px">'
-    + '<h2 style="font-size:16px;margin-bottom:6px">Provision new roles</h2>'
-    + '<p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">An agent on your machine researches live postings under these constraints, checks every link, and the verified rows land in the table. Needs <b>provision/watch.sh</b> running in the tech-roles repo.</p>'
+  div.innerHTML = '<div style="max-width:540px;width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:22px">'
+    + '<h2 style="font-size:16px;margin-bottom:10px">Provision</h2>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">'
+    + '<label class="toggle"><input type="radio" name="prov-mode" value="provision" checked> <b>Find new roles</b>&nbsp;— an agent researches live postings under the filters below (needs a Track and a Region)</label>'
+    + '<label class="toggle"><input type="radio" name="prov-mode" value="recheck"> <b>Recheck links</b>&nbsp;— re-verify every posting in scope (<span id="pv-scope"></span> roles), re-find moved ones, remove the truly dead</label>'
+    + '</div>'
     + '<dl class="kv" style="margin-bottom:12px">'
     + '<dt>Tracks</dt><dd id="pv-tracks"></dd>'
     + '<dt>Regions</dt><dd id="pv-regions"></dd>'
     + '<dt>Tiers</dt><dd id="pv-tiers"></dd></dl>'
-    + '<label class="fld" style="margin-bottom:14px"><span>Extra focus (optional)</span>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Recheck never deletes a role you applied to (it flags it instead), and removed roles are kept in provision/removed-*.json in the repo.</p>'
+    + '<label class="fld" style="margin-bottom:14px"><span>Extra focus (optional, find mode)</span>'
     + '<textarea id="prov-extra" class="note" placeholder="e.g. only robotics startups, only roles posted this month, prefer firms that sponsor visas"></textarea></label>'
     + '<div style="display:flex;gap:8px"><button class="btn primary" id="prov-go">Start</button>'
     + '<button class="btn" id="prov-cancel">Cancel</button></div></div>';
-  div.querySelector('#pv-tracks').textContent = tracks.join(', ');
-  div.querySelector('#pv-regions').textContent = regions.join(', ');
+  div.querySelector('#pv-tracks').textContent = tracks.length ? tracks.join(', ') : 'any';
+  div.querySelector('#pv-regions').textContent = regions.length ? regions.join(', ') : 'any';
   div.querySelector('#pv-tiers').textContent = tiers.length ? tiers.join(', ') : 'any';
+  div.querySelector('#pv-scope').textContent = scope > 500 ? '500 of ' + scope : scope;
   document.body.appendChild(div);
   div.querySelector('#prov-cancel').onclick = () => div.remove();
   div.querySelector('#prov-go').onclick = () => {
+    const mode = div.querySelector('input[name="prov-mode"]:checked').value;
+    if (mode === 'provision' && !(tracks.length && regions.length)){
+      toast('Find mode needs at least one Track and one Region filter'); return;
+    }
     const extra = div.querySelector('#prov-extra').value;
     div.remove();
-    provStart(extra);
+    provStart(extra, mode);
   };
 }
 
-async function provStart(extra){
+async function provStart(extra, mode){
   const id = today().replace(/-/g, '') + '-' + Math.random().toString(16).slice(2, 6);
-  const request = {id, created: new Date().toISOString(), tracks: [...F.track],
-                   regions: [...F.region], tiers: [...F.tier], extra: extra.trim()};
+  const request = {id, created: new Date().toISOString(), mode: mode || 'provision',
+                   tracks: [...F.track], regions: [...F.region], tiers: [...F.tier],
+                   extra: extra.trim()};
   let r;
   try {
     r = await fetch(api('provision/request-' + id + '.json'), {
@@ -1901,7 +1915,8 @@ async function provStart(extra){
   PROV = {id, started: today()};
   localStorage.setItem(PROV_KEY, JSON.stringify(PROV));
   provShownLogs = 0; provWaitTicks = 0;
-  provLine('request ' + id + ' filed: ' + request.tracks.join(', ') + ' in ' + request.regions.join(', '));
+  provLine('request ' + id + ' filed (' + request.mode + '): '
+    + (request.tracks.join(', ') || 'any track') + ' in ' + (request.regions.join(', ') || 'any region'));
   if (request.extra) provLine('focus: ' + request.extra, 'dim');
   provLine('waiting for the watcher to pick it up', 'dim');
   clearInterval(provTimer);
@@ -1936,6 +1951,16 @@ async function provPoll(){
     provLine('failed: ' + (res.error || 'unknown error'), 'err');
     provFinish(); return;
   }
+  if (res.mode === 'recheck'){
+    try {
+      await provApplyRecheck();
+      const gone = (res.removed || []).length, fixed = (res.fixed || []).length;
+      provLine('table refreshed: ' + fixed + ' links repaired, ' + gone + ' dead roles removed', gone || fixed ? 'ok' : 'dim');
+    } catch(e){
+      provLine('recheck finished on GitHub but refreshing failed: ' + e.message + ' - reload the page', 'err');
+    }
+    provFinish(); return;
+  }
   if (!(res.added || []).length){
     provLine('finished - nothing survived verification, the table is unchanged', 'dim');
     provFinish(); return;
@@ -1967,6 +1992,21 @@ function mergeRoles(fresh){
     added.push(x.i);
   }
   return added;
+}
+
+async function provApplyRecheck(){
+  const fresh = await fetchRoles();
+  FIRMS.length = 0; Array.prototype.push.apply(FIRMS, fresh.firms);
+  REASONS.length = 0; Array.prototype.push.apply(REASONS, fresh.reasons);
+  ROLES.length = 0;
+  for (const x of fresh.roles){
+    x.firm = FIRMS[x.f];
+    x.firmShort = x.firm.split(/\s+\/\s+|\s+\(/)[0].trim();
+    ROLES.push(x);
+  }
+  if (SELECTED != null && !ROLES.some(r => r.i === SELECTED)) closeDrawer();
+  renderAll();
+  document.getElementById('brandsub').textContent = ROLES.length + ' verified roles · ' + FIRMS.length + ' firms';
 }
 
 function provFinish(){
