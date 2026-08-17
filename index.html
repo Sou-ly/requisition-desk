@@ -6,6 +6,7 @@
 <title>Requisition Desk</title>
 <style>
 :root{
+  --top-h:53px; --bar-h:43px;
   --paper:#f2f1ec; --surface:#fffefa; --surface-2:#eceae3; --sunk:#e6e4dc;
   --ink:#16191a; --ink-2:#3d4442; --muted:#6d726f; --faint:#9aa09c;
   --rule:#dedbd2; --rule-2:#cbc7bb;
@@ -77,7 +78,7 @@ nav.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink)
 main{flex:1;display:none}
 main.on{display:block}
 .explore{display:grid;grid-template-columns:230px minmax(0,1fr);align-items:start}
-aside.rail{position:sticky;top:53px;max-height:calc(100vh - 53px);overflow-y:auto;padding:16px 14px 40px;border-right:1px solid var(--rule);background:var(--surface)}
+aside.rail{position:sticky;top:var(--top-h);max-height:calc(100vh - var(--top-h));overflow-y:auto;padding:16px 14px 40px;border-right:1px solid var(--rule);background:var(--surface)}
 .fgroup{margin-bottom:18px}
 .fgroup > .eyebrow{display:block;margin-bottom:7px}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -93,7 +94,7 @@ select.sel,input.txt{width:100%;background:var(--surface);border:1px solid var(-
 .searchwrap input{width:100%;background:var(--sunk);border:1px solid transparent;border-radius:8px;padding:7px 11px 7px 30px;font-size:13px}
 .searchwrap input:focus{background:var(--surface);border-color:var(--accent);outline:none}
 .searchwrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--faint)}
-.tablebar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:53px;z-index:20;flex-wrap:wrap}
+.tablebar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:var(--top-h);z-index:20;flex-wrap:wrap}
 .count{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
 .count b{color:var(--ink);font-variant-numeric:tabular-nums}
 .presets{display:flex;gap:4px;align-items:center}
@@ -105,7 +106,7 @@ select.sel,input.txt{width:100%;background:var(--surface);border:1px solid var(-
 table{width:100%;border-collapse:collapse;table-layout:fixed;color:var(--ink);font:inherit}
 col.c-tier{width:52px} col.c-firm{width:15%} col.c-role{width:29%} col.c-track{width:11%}
 col.c-loc{width:14%} col.c-sig{width:9%} col.c-band{width:13%} col.c-stage{width:9%}
-thead th{position:sticky;top:96px;z-index:15;background:var(--surface-2);border-bottom:1px solid var(--rule-2);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 10px;white-space:nowrap;cursor:pointer;user-select:none}
+thead th{position:sticky;top:calc(var(--top-h) + var(--bar-h));z-index:15;background:var(--surface-2);border-bottom:1px solid var(--rule-2);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 10px;white-space:nowrap;cursor:pointer;user-select:none}
 thead th:hover{color:var(--ink)}
 thead th.sorted{color:var(--accent-ink)}
 tbody tr{border-bottom:1px solid var(--rule);cursor:pointer}
@@ -429,6 +430,16 @@ async function fetchTracker(){
   return JSON.parse(b64decode(j.content));
 }
 
+/* The top bar and toolbar wrap on narrow windows, so sticky offsets are measured, not assumed. */
+function measureBars(){
+  const root = document.documentElement.style;
+  root.setProperty('--top-h', document.querySelector('header.top').offsetHeight + 'px');
+  root.setProperty('--bar-h', document.querySelector('.tablebar').offsetHeight + 'px');
+}
+const barWatcher = new ResizeObserver(measureBars);
+barWatcher.observe(document.querySelector('header.top'));
+barWatcher.observe(document.querySelector('.tablebar'));
+
 let DATA = null, REMOTE_TRACKER = null;
 {
   let msg = '';
@@ -510,6 +521,7 @@ function renderSync(){
 addEventListener('beforeunload', ev => {
   if (dirty || pushing) { ev.preventDefault(); ev.returnValue = ''; }
 });
+
 
 const ROLES = DATA.roles, FIRMS = DATA.firms, REASONS = DATA.reasons;
 ROLES.forEach(r => { r.firm = FIRMS[r.f]; r.firmShort = r.firm.split(/\s+\/\s+|\s+\(/)[0].trim(); });
