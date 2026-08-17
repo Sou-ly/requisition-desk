@@ -116,6 +116,20 @@ tr.grp td{background:var(--surface-2);font-size:12.5px}
 tr.grp:hover td{background:var(--sunk)}
 tr.grp .caret{display:inline-block;width:11px;color:var(--faint)}
 tr.ingrp td:first-child{padding-left:22px}
+@keyframes rowin{0%{background:var(--good-soft)}100%{background:transparent}}
+tr.rownew>td{animation:rowin 3s ease-out}
+#prov-panel{position:fixed;right:16px;bottom:16px;width:360px;max-height:46vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--rule-2);border-radius:12px;box-shadow:var(--shadow);z-index:120;overflow:hidden}
+#prov-panel header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule);background:var(--surface-2)}
+#prov-panel header b{font-size:13px;flex:1}
+.prov-dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.prov-dot.live{background:var(--good);animation:provpulse 1.2s ease-in-out infinite}
+@keyframes provpulse{50%{box-shadow:0 0 0 5px color-mix(in srgb, var(--good) 25%, transparent)}}
+#prov-log{overflow-y:auto;padding:10px 12px;font-family:var(--mono);font-size:11px;display:flex;flex-direction:column;gap:5px}
+#prov-log div{animation:provin .25s ease-out;color:var(--ink-2)}
+#prov-log div.err{color:var(--crit)}
+#prov-log div.ok{color:var(--good)}
+#prov-log div.dim{color:var(--muted)}
+@keyframes provin{from{opacity:0;transform:translateY(4px)}}
 td{padding:8px 10px;vertical-align:top;font-size:13px}
 td.t-firm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 td.t-title{color:var(--ink-2)}
@@ -293,6 +307,7 @@ input.txt{background:var(--sunk)}
       <div class="presets" id="presets"></div>
       <button class="btn sm" id="btn-shortlist-all">Shortlist page</button>
       <button class="btn sm" id="btn-open-batch">Open 5 shortlisted</button>
+      <button class="btn sm" id="btn-provision" disabled>Provision</button>
     </div>
     <div class="tbl-scroll">
       <table>
@@ -887,8 +902,9 @@ function renderTable(){
     const e = entry(r.i);
     const st = e ? e.st : 'none';
     const grouped = byFirm.get(r.firm).rows.length > 1;
-    const flag = (r.ns===true?'<span class="flag">NO-SPON</span> ':'') + (r.up===true?'<span class="flag">US-PERSON</span>':'');
-    return `<tr data-i="${r.i}" class="${SELECTED===r.i?'sel':''}${grouped?' ingrp':''}">
+    const flag = (NEWIDS.has(r.i)?'<span class="flag" style="color:var(--good)">NEW</span> ':'')
+      + (r.ns===true?'<span class="flag">NO-SPON</span> ':'') + (r.up===true?'<span class="flag">US-PERSON</span>':'');
+    return `<tr data-i="${r.i}" class="${SELECTED===r.i?'sel':''}${grouped?' ingrp':''}${NEWIDS.has(r.i)?' rownew':''}">
       <td><span class="tier ${r.t}">${r.t}</span></td>
       <td class="t-firm" title="${esc(r.firm)}">${grouped?'':esc(r.firmShort)}</td>
       <td class="t-title">${esc(r.ti)} ${flag}</td>
@@ -1517,7 +1533,7 @@ function show(view){
   if (view === 'auto') { buildBookmarklet(); renderATSTable(); }
 }
 function renderAll(){
-  compute(); renderRail(); renderPresets(); renderTable(); renderPulse();
+  compute(); renderRail(); renderPresets(); renderTable(); renderPulse(); provGate();
   if (document.getElementById('v-board').classList.contains('on')) renderBoard();
 }
 
@@ -1788,6 +1804,182 @@ function printResume(){
   if (!el){ el = document.createElement('div'); el.id = 'print-resume'; el.className = 'rsheet'; document.body.appendChild(el); }
   el.innerHTML = buildResumeHTML(v);
   window.print();
+}
+
+
+/* ---------------- provision ---------------- */
+const PROV_KEY = 'reqdesk.provision';
+let PROV = null;
+try { PROV = JSON.parse(localStorage.getItem(PROV_KEY)); } catch(e){}
+const NEWIDS = new Set();
+let provTimer = null, provShownLogs = 0, provWaitTicks = 0;
+
+function provGate(){
+  const btn = document.getElementById('btn-provision');
+  if (!btn) return;
+  const dot = document.querySelector('.prov-dot');
+  if (dot) dot.classList.toggle('live', !!PROV);
+  if (PROV){ btn.disabled = true; btn.textContent = 'Provisioning…'; return; }
+  btn.textContent = 'Provision';
+  const ok = F.track.size > 0 && F.region.size > 0;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? 'Send an agent to find more roles matching the current track and region filters'
+    : 'Pick at least one Track and one Region filter first, so the agent has a focused search';
+}
+
+function provPanelOpen(){
+  if (document.getElementById('prov-panel')) return;
+  const div = document.createElement('div');
+  div.id = 'prov-panel';
+  div.innerHTML = '<header><span class="prov-dot"></span><b>Provision</b>'
+    + '<button id="prov-close" class="dr-close" aria-label="Close">×</button></header>'
+    + '<div id="prov-log"></div>';
+  document.body.appendChild(div);
+  div.querySelector('#prov-close').onclick = () => div.remove();
+  provGate();
+}
+function provLine(msg, cls){
+  provPanelOpen();
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  const log = document.getElementById('prov-log');
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function provDialog(){
+  const tracks = [...F.track], regions = [...F.region], tiers = [...F.tier];
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;z-index:300;background:color-mix(in srgb, var(--paper) 80%, transparent);display:grid;place-items:center;padding:20px';
+  div.innerHTML = '<div style="max-width:520px;width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:22px">'
+    + '<h2 style="font-size:16px;margin-bottom:6px">Provision new roles</h2>'
+    + '<p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">An agent on your machine researches live postings under these constraints, checks every link, and the verified rows land in the table. Needs <b>provision/watch.sh</b> running in the tech-roles repo.</p>'
+    + '<dl class="kv" style="margin-bottom:12px">'
+    + '<dt>Tracks</dt><dd id="pv-tracks"></dd>'
+    + '<dt>Regions</dt><dd id="pv-regions"></dd>'
+    + '<dt>Tiers</dt><dd id="pv-tiers"></dd></dl>'
+    + '<label class="fld" style="margin-bottom:14px"><span>Extra focus (optional)</span>'
+    + '<textarea id="prov-extra" class="note" placeholder="e.g. only robotics startups, only roles posted this month, prefer firms that sponsor visas"></textarea></label>'
+    + '<div style="display:flex;gap:8px"><button class="btn primary" id="prov-go">Start</button>'
+    + '<button class="btn" id="prov-cancel">Cancel</button></div></div>';
+  div.querySelector('#pv-tracks').textContent = tracks.join(', ');
+  div.querySelector('#pv-regions').textContent = regions.join(', ');
+  div.querySelector('#pv-tiers').textContent = tiers.length ? tiers.join(', ') : 'any';
+  document.body.appendChild(div);
+  div.querySelector('#prov-cancel').onclick = () => div.remove();
+  div.querySelector('#prov-go').onclick = () => {
+    const extra = div.querySelector('#prov-extra').value;
+    div.remove();
+    provStart(extra);
+  };
+}
+
+async function provStart(extra){
+  const id = today().replace(/-/g, '') + '-' + Math.random().toString(16).slice(2, 6);
+  const request = {id, created: new Date().toISOString(), tracks: [...F.track],
+                   regions: [...F.region], tiers: [...F.tier], extra: extra.trim()};
+  let r;
+  try {
+    r = await fetch(api('provision/request-' + id + '.json'), {
+      method: 'PUT',
+      headers: ghHeaders({'Accept': 'application/vnd.github+json'}),
+      body: JSON.stringify({message: 'provision request ' + id,
+                            content: b64encode(JSON.stringify(request, null, 1))})
+    });
+  } catch(e){
+    toast('Could not reach GitHub: ' + e.message);
+    return;
+  }
+  if (!r.ok){
+    provLine('filing the request failed with HTTP ' + r.status
+      + ' - the token needs Contents read and write on the data repo', 'err');
+    toast('Provision request failed: HTTP ' + r.status);
+    return;
+  }
+  PROV = {id, started: today()};
+  localStorage.setItem(PROV_KEY, JSON.stringify(PROV));
+  provShownLogs = 0; provWaitTicks = 0;
+  provLine('request ' + id + ' filed: ' + request.tracks.join(', ') + ' in ' + request.regions.join(', '));
+  if (request.extra) provLine('focus: ' + request.extra, 'dim');
+  provLine('waiting for the watcher to pick it up', 'dim');
+  clearInterval(provTimer);
+  provTimer = setInterval(provPoll, 8000);
+  provGate();
+}
+
+async function provPoll(){
+  if (!PROV) return;
+  let r;
+  try {
+    r = await fetch(api('provision/result-' + PROV.id + '.json'),
+                    {cache: 'no-store', headers: ghHeaders({'Accept': 'application/vnd.github.raw+json'})});
+  } catch(e){
+    provLine('network error while polling, retrying: ' + e.message, 'dim');
+    return;
+  }
+  if (r.status === 404){
+    if (++provWaitTicks === 8) provLine('nothing picked the request up yet - is provision/watch.sh running on your machine?', 'dim');
+    return;
+  }
+  if (!r.ok){ provLine('poll failed: HTTP ' + r.status, 'dim'); return; }
+  let res;
+  try { res = await r.json(); }
+  catch(e){ return; }                       // half-written file; next tick gets it
+  for (; provShownLogs < (res.log || []).length; ++provShownLogs){
+    provLine(res.log[provShownLogs].msg);
+  }
+  if (res.state === 'running') return;
+  clearInterval(provTimer); provTimer = null;
+  if (res.state === 'error'){
+    provLine('failed: ' + (res.error || 'unknown error'), 'err');
+    provFinish(); return;
+  }
+  if (!(res.added || []).length){
+    provLine('finished - nothing survived verification, the table is unchanged', 'dim');
+    provFinish(); return;
+  }
+  try {
+    const fresh = await fetchRoles();
+    const added = mergeRoles(fresh);
+    added.forEach(i => NEWIDS.add(i));
+    ROLES.filter(x => NEWIDS.has(x.i)).forEach(x => EXPANDED.add(x.firm));
+    renderAll();
+    document.getElementById('brandsub').textContent = ROLES.length + ' verified roles · ' + FIRMS.length + ' firms';
+    provLine('added ' + added.length + ' verified roles to the table', 'ok');
+  } catch(e){
+    provLine('the roles merged on GitHub but refreshing failed: ' + e.message + ' - reload the page to see them', 'err');
+  }
+  provFinish();
+}
+
+function mergeRoles(fresh){
+  for (let k = FIRMS.length; k < fresh.firms.length; ++k) FIRMS.push(fresh.firms[k]);
+  for (let k = REASONS.length; k < fresh.reasons.length; ++k) REASONS.push(fresh.reasons[k]);
+  const known = new Set(ROLES.map(x => x.i));
+  const added = [];
+  for (const x of fresh.roles){
+    if (known.has(x.i)) continue;
+    x.firm = FIRMS[x.f];
+    x.firmShort = x.firm.split(/\s+\/\s+|\s+\(/)[0].trim();
+    ROLES.push(x);
+    added.push(x.i);
+  }
+  return added;
+}
+
+function provFinish(){
+  localStorage.removeItem(PROV_KEY);
+  PROV = null;
+  provGate();
+}
+
+document.getElementById('btn-provision').onclick = () => { if (!PROV) provDialog(); };
+if (PROV){
+  provPanelOpen();
+  provLine('resuming watch of request ' + PROV.id, 'dim');
+  provTimer = setInterval(provPoll, 8000);
 }
 
 /* ---------------- boot ---------------- */
