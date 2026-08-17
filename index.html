@@ -240,6 +240,7 @@ input.txt{background:var(--sunk)}
   body{background:#fff;padding:0}
   #print-resume{display:block;color:#000;font:10.5pt/1.35 Georgia,"Times New Roman",serif}
   #print-resume h1{font-size:19pt;margin:0;letter-spacing:0}
+  #print-resume .tag{font-size:10pt;font-weight:bold;margin-top:2pt}
   #print-resume .pc{font-size:9.5pt;margin:2pt 0 8pt}
   #print-resume h2{font-size:10pt;text-transform:uppercase;letter-spacing:.08em;border-bottom:1pt solid #000;margin:9pt 0 4pt;padding-bottom:1pt}
   #print-resume .ih{font-weight:bold;font-size:10.5pt;margin-top:4pt}
@@ -1567,7 +1568,7 @@ let RESUMES = REMOTE_RESUMES || {versions: [], activeId: null};
 const rvActive = () => RESUMES.versions.find(v => v.id === RESUMES.activeId) || null;
 function rvNew(name){
   return {id: Math.random().toString(16).slice(2, 8), name, created: today(),
-          header: {name: STATE.profile.firstName ? (STATE.profile.firstName + ' ' + STATE.profile.lastName).trim() : '', contact: ''},
+          header: {name: STATE.profile.firstName ? (STATE.profile.firstName + ' ' + STATE.profile.lastName).trim() : '', tagline: '', contact: ''},
           sections: [{title:'Experience', items:[]}, {title:'Education', items:[]}, {title:'Skills', items:[]}]};
 }
 function resumeSelect(cur){
@@ -1588,6 +1589,7 @@ function editorHTML(v){
     <div class="grid2" style="margin-bottom:12px">
       <label class="fld"><span>Full name</span><input class="txt" data-f="hname" value="${esc(v.header.name)}"></label>
       <label class="fld"><span>Contact line</span><input class="txt" data-f="hcontact" value="${esc(v.header.contact)}" placeholder="email · phone · city · links"></label>
+      <label class="fld"><span>Tagline</span><input class="txt" data-f="htagline" value="${esc(v.header.tagline||'')}" placeholder="Role · strengths · focus"></label>
     </div>
     ${v.sections.map((s, si) => `
       <div class="rsec">
@@ -1679,6 +1681,7 @@ function renderResume(){
     if (!f) return;
     const cur = rvActive(); if (!cur) return;
     if (f === 'hname') cur.header.name = t.value;
+    else if (f === 'htagline') cur.header.tagline = t.value;
     else if (f === 'hcontact') cur.header.contact = t.value;
     else if (f === 'title') cur.sections[+t.dataset.s].title = t.value;
     else {
@@ -1714,10 +1717,12 @@ function printResume(){
   const v = rvActive(); if (!v) return;
   let el = document.getElementById('print-resume');
   if (!el){ el = document.createElement('div'); el.id = 'print-resume'; document.body.appendChild(el); }
-  el.innerHTML = `<h1>${esc(v.header.name)}</h1><div class="pc">${esc(v.header.contact)}</div>`
+  el.innerHTML = `<h1>${esc(v.header.name)}</h1>`
+    + (v.header.tagline ? `<div class="tag">${esc(v.header.tagline)}</div>` : '')
+    + `<div class="pc">${esc(v.header.contact)}</div>`
     + v.sections.filter(s => s.items.length).map(s => `<h2>${esc(s.title)}</h2>`
       + s.items.map(it =>
-        `<div class="ih">${esc(it.head)}</div>`
+        (it.head ? `<div class="ih">${esc(it.head)}</div>` : '')
         + (it.sub ? `<div class="is">${esc(it.sub)}</div>` : '')
         + (it.bullets.some(x => x.trim())
             ? `<ul>${it.bullets.filter(x => x.trim()).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '')
